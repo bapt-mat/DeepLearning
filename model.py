@@ -13,13 +13,11 @@ class DoubleConv(nn.Module):
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
-
-    def forward(self, x):
-        return self.conv(x)
+    def forward(self, x): return self.conv(x)
 
 class SimpleUNet(nn.Module):
     def __init__(self, n_channels=3, n_classes=1):
-        super(SimpleUNet, self).__init__()
+        super().__init__()
         self.inc = DoubleConv(n_channels, 64)
         self.down1 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(64, 128))
         self.down2 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(128, 256))
@@ -31,7 +29,6 @@ class SimpleUNet(nn.Module):
         self.conv_up2 = DoubleConv(256, 128)
         self.up3 = nn.ConvTranspose2d(128, 64, 2, stride=2)
         self.conv_up3 = DoubleConv(128, 64)
-        
         self.outc = nn.Conv2d(64, n_classes, 1)
 
     def forward(self, x):
@@ -41,7 +38,6 @@ class SimpleUNet(nn.Module):
         x4 = self.down3(x3)
         
         x = self.up1(x4)
-        # Handle padding issues
         if x.size(2) != x3.size(2): x = F.interpolate(x, size=(x3.size(2), x3.size(3)))
         x = torch.cat([x3, x], dim=1)
         x = self.conv_up1(x)
@@ -55,5 +51,4 @@ class SimpleUNet(nn.Module):
         if x.size(2) != x1.size(2): x = F.interpolate(x, size=(x1.size(2), x1.size(3)))
         x = torch.cat([x1, x], dim=1)
         x = self.conv_up3(x)
-        
         return self.outc(x)

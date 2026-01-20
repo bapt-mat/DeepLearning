@@ -54,6 +54,6 @@ export PYTHONUNBUFFERED=1
 # (Fixed the quoting syntax error below)
 python3 -c "import torch; print(f'Torch: {torch.__version__} | CUDA: {torch.version.cuda} | GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"None\"}')"
 
-python3 train.py --epochs 20
+python3 train.py --epochs 10
 
 echo "✅ Job Finished."
