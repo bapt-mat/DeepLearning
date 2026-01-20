@@ -43,6 +43,6 @@ fi
 
 # 6. RUN EVALUATION
 echo "🚀 Starting Evaluation..."
-python3 evaluate_official.py
+python3 evaluate_of1.py
 
 echo "Evaluation Finished."
