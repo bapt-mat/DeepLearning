@@ -10,7 +10,7 @@ from tqdm import tqdm
 BASE_DIR = Path("data")  # Folder containing 'train_images' and 'train_masks'
 OUTPUT_NAME = "dataset"  # Will result in dataset.zip and dataset_chunks/
 TARGET_SIZE = (768, 768) # Resize target
-CHUNK_SIZE_MB = 10       # GitHub limit
+CHUNK_SIZE_MB = 45       # GitHub limit
 
 def preprocess_and_split():
     zip_filename = f"{OUTPUT_NAME}.zip"
