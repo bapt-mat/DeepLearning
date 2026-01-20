@@ -9,7 +9,7 @@
 #SBATCH -c 4
 #SBATCH --job-name=EvalForg
 
-# 1. NETWORK PROXY
+# 1. NETWORK PROXY (Essential for downloads)
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 export http_proxy=http://cache.univ-st-etienne.fr:3128
@@ -29,20 +29,22 @@ fi
 # 4. ACTIVATE PYTHON 3.9
 source /home_expes/tools/python/python3915_0_gpu/bin/activate
 
-# 5. CREATE FRESH VENV (Use the one from training if it exists, or create new)
-# It's faster to reuse the one created by run.sh if you didn't delete it.
-# If it's gone, we recreate it:
+# 5. SETUP VENV & FORCE INSTALL DEPENDENCIES
+# We create the venv if missing, but we ALWAYS run pip install
+# to ensure 'scipy' is present.
 if [ ! -d "$TMPDIR/venv" ]; then
+    echo "🔧 Creating new venv..."
     python3 -m venv $TMPDIR/venv
-    source $TMPDIR/venv/bin/activate
-    pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113 --no-cache-dir
-    pip install --no-cache-dir "numpy<2" opencv-python-headless pandas tqdm matplotlib segmentation-models-pytorch numba scipy
-else
-    source $TMPDIR/venv/bin/activate
 fi
+
+source $TMPDIR/venv/bin/activate
+
+echo "📦 Verifying dependencies (installing missing ones)..."
+# We force installation of scipy and numba here
+pip install --no-cache-dir "numpy<2" scipy numba pandas tqdm opencv-python-headless segmentation-models-pytorch torch==1.12.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
 
 # 6. RUN EVALUATION
 echo "🚀 Starting Evaluation..."
 python3 evaluate_official.py
 
-echo "Evaluation Finished."
+echo "✅ Evaluation Finished."
