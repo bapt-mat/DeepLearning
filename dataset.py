@@ -1,60 +1,91 @@
 import torch
 from torch.utils.data import Dataset
-import pandas as pd
 import numpy as np
 import cv2
 import os
+from pathlib import Path
 
 class ForgeryDataset(Dataset):
-    def __init__(self, data_dir, phase='train', transform=None):
-        self.data_dir = data_dir
+    def __init__(self, data_root, phase='train', transform=None):
+        self.data_root = Path(data_root)
         self.transform = transform
+        self.phase = phase
         
-        # Read metadata
-        csv_path = os.path.join(data_dir, "metadata.csv")
-        df = pd.read_csv(csv_path)
+        self.images = []
+        self.labels = []  # 0: Authentic, 1: Forged
+        self.mask_paths = []
+
+        # 1. Scan Authentic
+        auth_dir = self.data_root / "train_images" / "authentic"
+        if auth_dir.exists():
+            for img_path in auth_dir.glob("*.png"): # Assuming png, adjust if jpg
+                self.images.append(str(img_path))
+                self.labels.append(0)
+                self.mask_paths.append(None) # No mask for authentic
+
+        # 2. Scan Forged
+        forg_dir = self.data_root / "train_images" / "forged"
+        mask_root = self.data_root / "train_masks"
         
-        # Shuffle deterministically
-        df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-        split_point = int(0.8 * len(df))
+        if forg_dir.exists():
+            for img_path in forg_dir.glob("*.png"):
+                self.images.append(str(img_path))
+                self.labels.append(1)
+                
+                # Find corresponding mask (assuming ID.npy)
+                file_id = img_path.stem  # e.g. "0001" from "0001.png"
+                mask_p = mask_root / f"{file_id}.npy"
+                self.mask_paths.append(str(mask_p) if mask_p.exists() else None)
+
+        # Simple split: 80% train, 20% val (deterministic)
+        # We sort first to ensure order is always the same before splitting
+        combined = list(zip(self.images, self.labels, self.mask_paths))
+        combined.sort(key=lambda x: x[0]) 
+        
+        np.random.seed(42)
+        indices = np.random.permutation(len(combined))
+        split = int(0.8 * len(combined))
         
         if phase == 'train':
-            self.df = df.iloc[:split_point]
+            indices = indices[:split]
         else:
-            self.df = df.iloc[split_point:]
+            indices = indices[split:]
             
+        self.dataset = [combined[i] for i in indices]
+
     def __len__(self):
-        return len(self.df)
+        return len(self.dataset)
     
     def __getitem__(self, idx):
-        row = self.df.iloc[idx]
-        img_name = row['filename']
-        has_mask = row['has_mask']
+        img_path, label, mask_path = self.dataset[idx]
         
-        # 1. Load Image
-        img_path = os.path.join(self.data_dir, "images", img_name)
+        # Load Image
         image = cv2.imread(img_path)
+        if image is None: # Error handling
+             raise FileNotFoundError(f"Image not found: {img_path}")
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        # 2. Load Mask
-        if has_mask:
-            mask_name = row['mask_filename']
-            mask_path = os.path.join(self.data_dir, "masks", mask_name)
-            mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-            _, mask = cv2.threshold(mask, 127, 1.0, cv2.THRESH_BINARY)
+        # Load Mask
+        h, w, _ = image.shape
+        if label == 1 and mask_path:
+            try:
+                # Load NPY mask
+                mask = np.load(mask_path)
+                # If mask is 3D (H,W,C), squash it. If 2D (H,W), keep it.
+                if mask.ndim == 3: mask = mask.max(axis=0)
+                mask = (mask > 0).astype(np.float32)
+            except:
+                mask = np.zeros((h, w), dtype=np.float32)
         else:
-            h, w, _ = image.shape
             mask = np.zeros((h, w), dtype=np.float32)
 
-        # 3. Transform (Optional)
-        if self.transform:
-            augmented = self.transform(image=image, mask=mask)
-            image = augmented['image']
-            mask = augmented['mask']
-            
-        # 4. To Tensor
+        # Resize for training (Safety check)
+        target_size = (256, 256) # Adjust based on your GPU memory
+        image = cv2.resize(image, target_size)
+        mask = cv2.resize(mask, target_size, interpolation=cv2.INTER_NEAREST)
+
+        # To Tensor
         image = torch.from_numpy(image).float().permute(2, 0, 1) / 255.0
-        if isinstance(mask, np.ndarray):
-            mask = torch.from_numpy(mask).float()
+        mask = torch.from_numpy(mask).float().unsqueeze(0)
             
-        return image, mask.unsqueeze(0)
+        return image, mask
