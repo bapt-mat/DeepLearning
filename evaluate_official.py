@@ -9,8 +9,8 @@ from dataset import ForgeryDataset
 import kaggle_metric  # This imports the file you just created
 
 # --- SETTINGS ---
-MODEL_PATH = "model_epoch_19.pth"  # Path to your best model
-DATA_PATH = "./data" # Path to data
+MODEL_PATH = "model_epoch_5.pth"  # Path to your best model
+DATA_PATH = "/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 THRESHOLD = 0.5  # Probability threshold to decide pixel is white
 MIN_PIXELS = 10  # Minimum size to count as a "forgery instance"
