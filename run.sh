@@ -1,16 +1,15 @@
 #!/bin/bash
-#SBATCH --partition=GPU          # Must be 'GPU' for the graphics card [cite: 38]
-#SBATCH --gres=gpu:1             # Request 1 GPU [cite: 279]
-#SBATCH --mem=24G                # Request 24GB RAM
-#SBATCH --time=04:00:00          # 4 hours (adjust if needed)
+#SBATCH --partition=GPU
+#SBATCH --gres=gpu:1
+#SBATCH --mem=24G
+#SBATCH --time=04:00:00
 #SBATCH --output=logs/out_%j.log
 #SBATCH --error=logs/err_%j.log
 #SBATCH -n 1
-#SBATCH -c 4                     # 4 CPUs for data loading
+#SBATCH -c 4
 #SBATCH --job-name=DeepForg
 
-# --- 1. Fix the "Not Write-able" Crash ---
-# If SLURM doesn't give us a temp folder, force it to use /tmp
+# 1. Setup Temp Directory
 if [ -z "$SLURM_TMPDIR" ]; then
     export TMPDIR="/tmp"
 else
@@ -18,24 +17,30 @@ else
 fi
 echo "📂 Using temp dir: $TMPDIR"
 
-# --- 2. Load the GPU Python Environment ---
-# We use the path you found. This activates the base GPU python.
+# 2. Activate University GPU Python
+# This environment ALREADY HAS a compatible PyTorch installed!
 echo "🐍 Activating University GPU Python..."
 source /home_expes/tools/python/python3124_gpu/bin/activate
 
-# --- 3. Create a Writable Layer (Virtual Environment) ---
-# The university environment is read-only. We create a fresh venv ON TOP of it
-# inside the temp folder so we can install your specific packages (torch, etc.)
-echo "🔧 Creating writable venv in temp storage..."
+# 3. Create a Writable Layer
+# We use --system-site-packages so we can "see" the University's PyTorch
+# without needing to reinstall it.
+echo "🔧 Creating venv..."
 python3 -m venv $TMPDIR/venv --system-site-packages
 source $TMPDIR/venv/bin/activate
 
-# --- 4. Install Dependencies ---
-# We install exactly what you need into the temp venv
-echo "📦 Installing dependencies..."
-pip install --no-cache-dir torch torchvision opencv-python-headless numpy
+# 4. Install ONLY Missing Dependencies
+# 🛑 CRITICAL: Do NOT include 'torch', 'torchvision', or 'numpy' here.
+# We only install the extras that the cluster usually lacks.
+echo "📦 Installing extras..."
+pip install --no-cache-dir opencv-python-headless pandas tqdm matplotlib
 
-# --- 5. Run Training ---
+# 5. Debug Check (Optional)
+# This prints which Torch version is being used to the logs
+echo "🔍 Checking PyTorch version..."
+python3 -c "import torch; print(f'Torch: {torch.__version__}, CUDA: {torch.version.cuda}, GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}')"
+
+# 6. Run Training
 cd $SLURM_SUBMIT_DIR || exit 1
 echo "🔥 Starting Training..."
 export PYTHONUNBUFFERED=1
