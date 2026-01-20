@@ -10,7 +10,7 @@ from metrics import calculate_metrics
 
 def train():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, required=True)
+    parser.add_argument('--data_dir', type=str, default="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection")
     parser.add_argument('--epochs', type=int, default=20)
     args = parser.parse_args()
 
