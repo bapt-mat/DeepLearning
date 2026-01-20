@@ -45,4 +45,4 @@ fi
 echo "🚀 Starting Evaluation..."
 python3 evaluate_official.py
 
-echo "✅ Evaluation Finished."
+echo "Evaluation Finished."
