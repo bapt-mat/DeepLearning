@@ -1,38 +1,40 @@
 #!/bin/bash
-#SBATCH --partition=GPU          # Partition name must be uppercase 'GPU'
-#SBATCH --job-name=DeepForg      # Job name
-#SBATCH --output=logs/out_%j.log # Standard output log
-#SBATCH --error=logs/err_%j.log  # Standard error log
-#SBATCH --gres=gpu:1             # Request 1 GPU
-#SBATCH --mem=24G                # Request 24GB RAM
-#SBATCH --cpus-per-task=4        # Request 4 CPU cores
-#SBATCH --time=04:00:00          # Max runtime (4 hours)
+#SBATCH --partition=GPU          # We use GPU partition for Deep Learning [cite: 68]
+#SBATCH --job-name=DeepForg
+#SBATCH --output=logs/out_%j.log
+#SBATCH --error=logs/err_%j.log
+#SBATCH --gres=gpu:1             # Request 1 GPU [cite: 68]
+#SBATCH --mem=24G                # 24GB RAM
+#SBATCH --cpus-per-task=4        # 4 CPUs
+#SBATCH --time=168:00:00         # Your preferred 7-day limit [cite: 68]
 
-# 1. Load Python
-# The UJM documentation lists 'Python-3.11.5-ubuntu20' as available.
-# We source it directly as recommended in the manual.
-echo "🐍 Loading Python 3.11..."
-source /home_expes/tools/python/Python-3.11.5-ubuntu20/bin/activate
+# --- FIX 1: Define a fallback for the temporary directory ---
+# If SLURM_TMPDIR is empty (which caused the crash), use /tmp
+if [ -z "$SLURM_TMPDIR" ]; then
+    export TMPDIR="/tmp"
+else
+    export TMPDIR="$SLURM_TMPDIR"
+fi
+echo "📂 Using temp dir: $TMPDIR"
 
-# 2. Setup Fast Temporary Environment
-# We create a virtualenv in the fast local SSD ($SLURM_TMPDIR)
-# This prevents filling up your limited Home directory quota.
-echo "🔧 Setting up venv in $SLURM_TMPDIR..."
-virtualenv $SLURM_TMPDIR/venv
-source $SLURM_TMPDIR/venv/bin/activate
+# --- FIX 2: Load Python correctly (Add to PATH, don't source) ---
+# We add the 3.11 binary folder to PATH. This works even for raw installs.
+export PATH=/home_expes/tools/python/Python-3.11.5-ubuntu20/bin:$PATH
+echo "🐍 Python version: $(python3 --version)"
 
-# 3. Install Libraries
-# We use --no-cache-dir to save space and ensure a fresh install
+# --- FIX 3: Create a clean virtual environment manually ---
+# This avoids the "externally managed environment" error
+echo "🔧 Creating venv..."
+python3 -m venv $TMPDIR/venv
+source $TMPDIR/venv/bin/activate
+
+# --- FIX 4: Install your packages ---
 echo "📦 Installing dependencies..."
 pip install --no-cache-dir torch torchvision opencv-python-headless numpy
 
-# 4. Run Training
-# We go to the folder where you submitted the script
+# Run
 cd $SLURM_SUBMIT_DIR
-
 echo "🔥 Starting Training..."
-# The data_dir is set to the cluster's shared folder inside train.py, 
-# so we don't need to specify it here unless you changed it.
 python train.py --epochs 20
 
 echo "✅ Job Finished."
