@@ -1,66 +1,100 @@
 import torch
 import numpy as np
+import pandas as pd
+import json
 from scipy.ndimage import label
-from scipy.optimize import linear_sum_assignment
 from tqdm import tqdm
 from model import SimpleUNet
 from dataset import ForgeryDataset
+import kaggle_metric  # Import the file you created above
 
-# --- UPDATE PATHS HERE ---
-MODEL_PATH = "model_epoch_0.pth"  # Your saved model
-DATA_PATH = "/Users/baptiste/MASTER/M2/S3/DeepLearning/dataset" # Local path
+# --- SETTINGS ---
+MODEL_PATH = "model_epoch_3.pth"  # Your trained model
+DATA_PATH = "./data" # Dataset path
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-THRESHOLD = 0.5
+THRESHOLD = 0.5  # Probability threshold
+MIN_PIXELS = 10  # Ignore instances smaller than this (noise reduction)
 
-def compute_pixel_f1(pred_mask, gt_mask):
-    tp = np.sum(pred_mask * gt_mask)
-    fp = np.sum(pred_mask) - tp
-    fn = np.sum(gt_mask) - tp
-    if tp == 0: return 0.0
-    return (2 * tp) / (2 * tp + fp + fn)
+def get_rle_string_from_mask(binary_mask):
+    """
+    Takes a binary mask (H,W), separates it into instances, 
+    and returns the specific 'authentic' string or RLE string 
+    expected by the kaggle_metric.py
+    """
+    # 1. Connected Components (Instance Separation)
+    labeled_mask, num_features = label(binary_mask)
+    
+    instances = []
+    for i in range(1, num_features + 1):
+        instance = (labeled_mask == i).astype(np.uint8)
+        # Filter noise
+        if instance.sum() > MIN_PIXELS:
+            instances.append(instance)
+            
+    # 2. Convert to Kaggle Format
+    if len(instances) == 0:
+        return "authentic"
+    else:
+        # Use the official RLE encoder
+        return kaggle_metric.rle_encode(instances)
 
-def compute_oF1_single_image(pred_prob_map, gt_mask_map, threshold=0.5):
-    pred_bin = (pred_prob_map > threshold).astype(np.uint8)
-    gt_bin = (gt_mask_map > 0).astype(np.uint8)
-
-    pred_labeled, num_pred = label(pred_bin, structure=np.ones((3,3)))
-    gt_labeled, num_gt = label(gt_bin, structure=np.ones((3,3)))
-
-    if num_pred == 0 and num_gt == 0: return 1.0
-    if num_pred == 0 or num_gt == 0: return 0.0
-
-    f1_matrix = np.zeros((num_gt, num_pred))
-    for i in range(1, num_gt + 1):
-        gt_instance = (gt_labeled == i)
-        for j in range(1, num_pred + 1):
-            pred_instance = (pred_labeled == j)
-            f1_matrix[i-1, j-1] = compute_pixel_f1(pred_instance, gt_instance)
-
-    row_ind, col_ind = linear_sum_assignment(f1_matrix, maximize=True)
-    total_f1 = f1_matrix[row_ind, col_ind].sum()
-    return total_f1 / max(num_gt, num_pred)
-
-def evaluate_model():
+def evaluate_official():
+    print(f"Loading model: {MODEL_PATH}")
     model = SimpleUNet().to(DEVICE)
     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
     model.eval()
 
+    print("Loading Validation Set...")
     val_ds = ForgeryDataset(DATA_PATH, phase='val')
-    print(f"Evaluating oF1 on {len(val_ds)} images...")
-
-    of1_scores = []
+    
+    solution_rows = []
+    submission_rows = []
+    
+    print("Generating Predictions & RLEs...")
     with torch.no_grad():
-        for img_tensor, mask_tensor in tqdm(val_ds):
+        for i in tqdm(range(len(val_ds))):
+            img_tensor, gt_tensor = val_ds[i]
+            
+            # --- PREDICTION ---
             input_batch = img_tensor.unsqueeze(0).to(DEVICE)
-            gt_mask_np = mask_tensor.squeeze().numpy()
-            
             output = model(input_batch)
-            pred_prob_np = torch.sigmoid(output).squeeze().cpu().numpy()
+            pred_prob = torch.sigmoid(output).squeeze().cpu().numpy()
+            pred_bin = (pred_prob > THRESHOLD).astype(np.uint8)
             
-            score = compute_oF1_single_image(pred_prob_np, gt_mask_np, THRESHOLD)
-            of1_scores.append(score)
+            # --- GROUND TRUTH ---
+            gt_bin = gt_tensor.squeeze().numpy().astype(np.uint8)
+            
+            # --- FORMATTING FOR OFFICIAL METRIC ---
+            # 1. Get Shape JSON
+            height, width = pred_bin.shape
+            shape_str = json.dumps([height, width])
+            
+            # 2. Get Prediction String (RLE or 'authentic')
+            pred_str = get_rle_string_from_mask(pred_bin)
+            
+            # 3. Get Solution String (RLE or 'authentic')
+            # Note: Even though we collapsed the mask in dataset.py, 
+            # we must treat connected components as instances for the metric.
+            gt_str = get_rle_string_from_mask(gt_bin)
+            
+            # 4. Append to lists
+            row_id = i
+            solution_rows.append({'row_id': row_id, 'annotation': gt_str, 'shape': shape_str})
+            submission_rows.append({'row_id': row_id, 'annotation': pred_str})
 
-    print(f"Global Validation oF1 Score: {np.mean(of1_scores):.4f}")
+    # --- DATAFRAME CREATION ---
+    solution_df = pd.DataFrame(solution_rows)
+    submission_df = pd.DataFrame(submission_rows)
+    
+    print("\nCalculating Final Score...")
+    try:
+        final_score = kaggle_metric.score(solution_df, submission_df, 'row_id')
+        print("=" * 40)
+        print(f"OFFICIAL KAGGLE SCORE (oF1): {final_score:.4f}")
+        print("=" * 40)
+    except Exception as e:
+        print(f"Error during scoring: {e}")
+        print("Tip: Make sure you installed 'numba': pip install numba")
 
 if __name__ == "__main__":
-    evaluate_model()
+    evaluate_official()

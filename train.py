@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from dataset import ForgeryDataset
-from model import SimpleUNet
+from model import SimpleUNet, ResUNet
 from metrics import calculate_metrics  # Import the new metrics file
 import argparse
 import os
@@ -25,7 +25,8 @@ def train():
     train_loader = DataLoader(train_ds, batch_size=16, shuffle=True, num_workers=2)
     val_loader = DataLoader(val_ds, batch_size=16, shuffle=False, num_workers=2)
     
-    model = SimpleUNet().to(device)
+    #model = SimpleUNet().to(device)
+    model = ResUNet().to(device)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = torch.nn.BCEWithLogitsLoss()
     

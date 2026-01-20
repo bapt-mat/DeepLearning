@@ -6,73 +6,95 @@ from model import SimpleUNet
 from dataset import ForgeryDataset
 
 # --- SETTINGS ---
-MODEL_PATH = "model_epoch_3.pth"  # Your downloaded model
-DATA_PATH = "./data" # Your local path
+MODEL_PATH = "model_epoch_3.pth"  # Update this to your best model
+DATA_PATH = "./data" # Update local path
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+NUM_SAMPLES = 10
+PIXEL_THRESHOLD = 0.5
+AREA_THRESHOLD = 10 # Number of pixels required to call it "Forged"
 
-# 1. Load Model
-model = SimpleUNet().to(DEVICE)
-# Map location allows loading a GPU model on a CPU (Mac)
-model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
-model.eval()
+def visualize_results():
+    print(f"Loading model from {MODEL_PATH}...")
+    model = SimpleUNet().to(DEVICE)
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+    model.eval()
 
-# 2. Load Validation Set
-val_ds = ForgeryDataset(DATA_PATH, phase='val')
+    print(f"Loading dataset from {DATA_PATH}...")
+    val_ds = ForgeryDataset(DATA_PATH, phase='val')
 
-# 3. Find Forged Indices
-# We iterate to find images that actually have a mask (forgeries)
-forged_indices = []
-for i in range(len(val_ds)):
-    _, label, _ = val_ds.dataset[i]  # Access internal list to be fast
-    if label == 1:
-        forged_indices.append(i)
+    # 1. Filter for Forged Images only (so we have interesting masks to compare)
+    forged_indices = []
+    for i in range(len(val_ds)):
+        # Access internal list directly for speed to find label 1
+        if val_ds.dataset[i][1] == 1: 
+            forged_indices.append(i)
 
-if not forged_indices:
-    print("No forged images found!")
-    exit()
+    if not forged_indices:
+        print("No forged images found in validation set!")
+        return
 
-# 4. Select 10 Random Forgeries
-num_samples = min(10, len(forged_indices))
-selected_indices = random.sample(forged_indices, num_samples)
-
-# 5. Plotting
-plt.figure(figsize=(15, 5 * num_samples))
-
-for i, idx in enumerate(selected_indices):
-    img_tensor, mask_tensor = val_ds[idx]
+    # 2. Select Random Samples
+    num_display = min(NUM_SAMPLES, len(forged_indices))
+    selected_indices = random.sample(forged_indices, num_display)
     
-    # Predict
+    print(f"Plotting {num_display} images...")
+
+    # 3. Create Grid Plot (3 Rows x N Columns)
+    # Increased height slightly to make room for the text below
+    fig, axes = plt.subplots(3, num_display, figsize=(20, 7))
+    
+    # Row Labels
+    rows = ['Original Image', 'Ground Truth Mask', 'Predicted Mask']
+    for ax, row in zip(axes[:,0], rows):
+        ax.set_ylabel(row, rotation=90, size='large', weight='bold')
+
     with torch.no_grad():
-        input_batch = img_tensor.unsqueeze(0).to(DEVICE)
-        output = model(input_batch)
-        pred_prob = torch.sigmoid(output).squeeze().cpu().numpy()
-    
-    # Prepare Images for Display
-    # Original: (C, H, W) -> (H, W, C)
-    orig = img_tensor.permute(1, 2, 0).numpy()
-    # Mask: (1, H, W) -> (H, W)
-    gt = mask_tensor.squeeze().numpy()
-    # Pred: Already (H, W)
-    
-    # --- Row i: Original ---
-    plt.subplot(num_samples, 3, i * 3 + 1)
-    plt.imshow(orig)
-    plt.title(f"Original #{idx}")
-    plt.axis('off')
-    
-    # --- Row i: Ground Truth ---
-    plt.subplot(num_samples, 3, i * 3 + 2)
-    plt.imshow(gt, cmap='gray', vmin=0, vmax=1)
-    plt.title("Ground Truth Mask")
-    plt.axis('off')
+        for i, idx in enumerate(selected_indices):
+            img_tensor, mask_tensor = val_ds[idx]
+            
+            # --- PREDICTION ---
+            input_batch = img_tensor.unsqueeze(0).to(DEVICE)
+            output = model(input_batch)
+            pred_prob = torch.sigmoid(output).squeeze().cpu().numpy()
+            
+            # --- CLASSIFICATION LOGIC ---
+            pred_bin = (pred_prob > PIXEL_THRESHOLD).astype(np.uint8)
+            white_pixels = np.sum(pred_bin)
+            
+            if white_pixels > AREA_THRESHOLD:
+                pred_class = "FORGED"
+                color = "red" # Highlight Forged in red
+            else:
+                pred_class = "AUTHENTIC"
+                color = "green" # Highlight Authentic in green (error in this case since we know inputs are forged)
 
-    # --- Row i: Prediction ---
-    plt.subplot(num_samples, 3, i * 3 + 3)
-    plt.imshow(pred_prob, cmap='gray', vmin=0, vmax=1)
-    plt.title(f"Prediction (Max: {pred_prob.max():.2f})")
-    plt.axis('off')
+            # Prepare images for display
+            orig_img = img_tensor.permute(1, 2, 0).numpy()
+            gt_mask = mask_tensor.squeeze().numpy()
+            
+            # --- ROW 1: Original ---
+            axes[0, i].imshow(orig_img)
+            axes[0, i].set_xticks([])
+            axes[0, i].set_yticks([])
+            axes[0, i].set_title(f"ID: {idx}")
 
-plt.tight_layout()
-plt.savefig("visualization_results.png")
-print("✅ Saved plot to visualization_results.png")
-plt.show()
+            # --- ROW 2: Ground Truth ---
+            axes[1, i].imshow(gt_mask, cmap='gray', vmin=0, vmax=1)
+            axes[1, i].set_xticks([])
+            axes[1, i].set_yticks([])
+
+            # --- ROW 3: Prediction & Classification ---
+            axes[2, i].imshow(pred_prob, cmap='gray', vmin=0, vmax=1)
+            axes[2, i].set_xticks([])
+            axes[2, i].set_yticks([])
+            
+            # Add the Classification Label BELOW the image
+            axes[2, i].set_xlabel(f"{pred_class}\n({white_pixels} px)", fontsize=12, fontweight='bold', color=color)
+
+    plt.tight_layout()
+    plt.savefig("results_grid_classified.png")
+    print("✅ Saved to results_grid_classified.png")
+    plt.show()
+
+if __name__ == "__main__":
+    visualize_results()
