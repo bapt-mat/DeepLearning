@@ -17,28 +17,29 @@ else
 fi
 echo "📂 Using temp dir: $TMPDIR"
 
-# 2. Activate University GPU Python
-# This environment ALREADY HAS a compatible PyTorch installed!
-echo "🐍 Activating University GPU Python..."
-source /home_expes/tools/python/python3124_gpu/bin/activate
+# 2. Activate OLDER GPU Python (Python 3.10)
+# python3124 (Py3.12) was too new. python3102 (Py3.10) supports GTX 1080 Ti.
+echo "🐍 Activating Python 3.10 (Compatible with GTX 1080 Ti)..."
+source /home_expes/tools/python/python3102_0_gpu/bin/activate
 
-# 3. Create a Writable Layer
-# We use --system-site-packages so we can "see" the University's PyTorch
-# without needing to reinstall it.
-echo "🔧 Creating venv..."
+# 3. Clean and Create Venv
+# We MUST delete the old venv because it was created with Python 3.12
+# and will break if we try to use it with Python 3.10.
+echo "🧹 Cleaning old venv..."
+rm -rf $TMPDIR/venv
+
+echo "🔧 Creating new writable venv..."
 python3 -m venv $TMPDIR/venv --system-site-packages
 source $TMPDIR/venv/bin/activate
 
-# 4. Install ONLY Missing Dependencies
-# 🛑 CRITICAL: Do NOT include 'torch', 'torchvision', or 'numpy' here.
-# We only install the extras that the cluster usually lacks.
+# 4. Install Dependencies
+# Still excluding torch/numpy so we use the cluster's compatible versions
 echo "📦 Installing extras..."
 pip install --no-cache-dir opencv-python-headless pandas tqdm matplotlib
 
-# 5. Debug Check (Optional)
-# This prints which Torch version is being used to the logs
-echo "🔍 Checking PyTorch version..."
-python3 -c "import torch; print(f'Torch: {torch.__version__}, CUDA: {torch.version.cuda}, GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}')"
+# 5. Check Versions (For peace of mind)
+echo "🔍 Checking PyTorch compatibility..."
+python3 -c "import torch; print(f'Torch: {torch.__version__}, CUDA: {torch.version.cuda}, GPU: {torch.cuda.get_device_name(0)}')"
 
 # 6. Run Training
 cd $SLURM_SUBMIT_DIR || exit 1

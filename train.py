@@ -41,8 +41,7 @@ def train():
             
             total_loss += loss.item()
             
-            if i % 10 == 0:
-                print(f"Epoch {epoch} | Batch {i} | Loss: {loss.item():.4f}")
+            print(f"Epoch {epoch} | Batch {i} | Loss: {loss.item():.4f}")
                 
         print(f"Epoch {epoch} Finished | Avg Loss: {total_loss/len(train_loader):.4f}")
         
