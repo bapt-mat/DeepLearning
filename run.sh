@@ -1,16 +1,27 @@
 #!/bin/bash
-#SBATCH --partition=GPU          # [cite: 150, 266]
-#SBATCH --gres=gpu:1             # [cite: 391]
-#SBATCH --mem=24G                # [cite: 390]
-#SBATCH --time=04:00:00          # [cite: 805]
-#SBATCH --output=logs/out_%j.log # [cite: 466]
-#SBATCH --error=logs/err_%j.log  # [cite: 467]
-#SBATCH -n 1                     # [cite: 386]
-#SBATCH -c 4                     # [cite: 389]
-#SBATCH --job-name=DeepForg      # [cite: 465]
+#SBATCH --partition=GPU
+#SBATCH --gres=gpu:1
+#SBATCH --mem=24G
+#SBATCH --time=04:00:00
+#SBATCH --output=logs/out_%j.log
+#SBATCH --error=logs/err_%j.log
+#SBATCH -n 1
+#SBATCH -c 4
+#SBATCH --job-name=DeepForg
 
-# 1. Setup Temp Directory (Prevent quota issues)
-# The docs mention local disks access to /tmp [cite: 169]
+# 1. NETWORK PROXY (CRITICAL)
+# The docs state this is required to download packages[cite: 88, 89, 90].
+export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
+export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
+export http_proxy=http://cache.univ-st-etienne.fr:3128
+export https_proxy=http://cache.univ-st-etienne.fr:3128
+
+# 2. SETUP CUDA 11.3
+# We explicitly load the CUDA version compatible with your GPU[cite: 80, 81].
+export LD_LIBRARY_PATH=/home_expes/tools/cuda/cuda-11.3/lib64:$LD_LIBRARY_PATH
+export PATH=/home_expes/tools/cuda/cuda-11.3/bin:$PATH
+
+# 3. SETUP TEMP DIRECTORY
 if [ -z "$SLURM_TMPDIR" ]; then
     export TMPDIR="/tmp"
 else
@@ -18,33 +29,36 @@ else
 fi
 echo "📂 Using temp dir: $TMPDIR"
 
-# 2. Activate University Python 3.9 (GPU)
-# We use the specific path found in the UJM doc [cite: 51, 72]
-echo "🐍 Activating University GPU Python 3.9..."
+# 4. ACTIVATE PYTHON 3.9
+# We use Python 3.9 as the base[cite: 51].
+echo "🐍 Activating Python 3.9..."
 source /home_expes/tools/python/python3915_0_gpu/bin/activate
 
-# 3. Create a Writable Layer (Virtual Environment)
-# We use --system-site-packages so we can 'see' the University's PyTorch
-# This avoids needing to reinstall it (which caused your version mismatch).
-echo "🔧 Creating writable venv..."
-rm -rf $TMPDIR/venv # Cleanup previous runs
-python3 -m venv $TMPDIR/venv --system-site-packages
+# 5. CREATE FRESH VENV
+# We create a new, empty environment to avoid conflicts.
+echo "🔧 Creating fresh venv..."
+rm -rf $TMPDIR/venv
+python3 -m venv $TMPDIR/venv
 source $TMPDIR/venv/bin/activate
 
-# 4. Install ONLY Missing Dependencies
-# CRITICAL: We do NOT install torch here. We use the one from step 2.
-echo "📦 Installing extras..."
+# 6. INSTALL COMPATIBLE PYTORCH
+# We force install PyTorch 1.12.1 + CUDA 11.3.
+# This prevents the "Capability 6.1" error and works with your 1080 Ti.
+echo "📦 Downloading compatible PyTorch..."
+pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113 --no-cache-dir
+
+# 7. INSTALL EXTRAS
+echo "📦 Installing libraries..."
 pip install --no-cache-dir opencv-python-headless pandas tqdm matplotlib
 
-# 5. Debug Check
-# This confirms we are using the correct, cluster-provided PyTorch
-echo "🔍 Checking PyTorch version..."
-python3 -c "import torch; print(f'Torch: {torch.__version__}, GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}')"
-
-# 6. Run Training
+# 8. RUN TRAINING
 cd $SLURM_SUBMIT_DIR || exit 1
 echo "🔥 Starting Training..."
 export PYTHONUNBUFFERED=1
+
+# Print version info for debugging
+python3 -c "import torch; print(f'Torch: {torch.__version__} | CUDA: {torch.version.cuda} | GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'}')"
+
 python3 train.py --epochs 20
 
 echo "✅ Job Finished."
