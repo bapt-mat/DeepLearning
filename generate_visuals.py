@@ -34,30 +34,28 @@ def save_visuals():
     # 3. Find Images with ACTUAL WHITE PIXELS in the mask
     indices_to_save = []
     
-    # We will loop until we find 5 good ones, or check the first 2000 images
-    for i in range(min(len(val_ds), 2000)):
-        
-        # Quick check: If the dataset has a label list, skip authentic (0) immediately
-        # (This assumes your dataset class has a .images attribute list)
-        if hasattr(val_ds, 'images'):
-             _, label, _ = val_ds.images[i]
-             if label == 0: continue
-
-        # Load the actual tensors
-        img_tensor, mask_tensor = val_ds[i]
-        
-        # --- CRITICAL CHECK ---
-        # Only keep this image if the mask has white pixels (sum > 0)
-        if mask_tensor.sum() > 10:  # Threshold > 10 pixels to avoid tiny noise
-            indices_to_save.append(i)
-            print(f"   ✅ Found valid sample at index {i} (Mask pixels: {mask_tensor.sum().item()})")
+    # We loop safely using the dataset length
+    # We set a limit (e.g. check first 2000) to avoid waiting too long if something is wrong
+    max_checks = min(len(val_ds), 3000)
+    
+    for i in range(max_checks):
+        try:
+            # Load the actual tensors via the standard method (Safe)
+            # This avoids the IndexError by letting the dataset handle the indexing
+            img_tensor, mask_tensor = val_ds[i]
             
-            if len(indices_to_save) >= 5:
-                break
-        else:
-            # If label was 1 but mask is empty, we print a warning (debugging)
-            if hasattr(val_ds, 'images') and label == 1:
-                print(f"   ⚠️  Index {i} is labeled Forged but mask is empty! Skipping.")
+            # --- FILTER: Check for white pixels ---
+            # If the mask has white pixels (sum > 10), it is a forgery we want to see
+            if mask_tensor.sum() > 10: 
+                indices_to_save.append(i)
+                print(f"   ✅ Found valid sample at index {i} (Mask pixels: {mask_tensor.sum().item()})")
+                
+                if len(indices_to_save) >= 5: # Stop after finding 5
+                    break
+                    
+        except Exception as e:
+            print(f"   ⚠️ Error loading index {i}: {e}")
+            continue
 
     if len(indices_to_save) == 0:
         print("❌ Error: Could not find ANY samples with valid masks. Check your dataset path/loading logic.")
