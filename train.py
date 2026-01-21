@@ -11,7 +11,9 @@ from model import FlexibleModel
 def calculate_metrics(pred, target):
     pred = (torch.sigmoid(pred) > 0.5).float()
     tp, fp, fn = (pred * target).sum(), (pred * (1-target)).sum(), ((1-pred) * target).sum()
-    return {"Dice": (2*tp + 1e-6)/(2*tp + fp + fn + 1e-6).item()}
+    # FIXED: Added .item() to ensure it returns a Python float, not a Tensor
+    score = (2*tp + 1e-6)/(2*tp + fp + fn + 1e-6)
+    return {"Dice": score.item()}
 
 # --- DICE LOSS ---
 class DiceLoss(torch.nn.Module):
@@ -56,7 +58,6 @@ def train():
             optimizer.zero_grad()
             outputs = model(imgs)
             
-            # Deep Supervision Logic
             if isinstance(outputs, list):
                 loss = 0
                 for i, out in enumerate(outputs):
@@ -71,7 +72,7 @@ def train():
         
         # Validation
         model.eval()
-        val_dice = 0
+        val_dice = 0.0
         with torch.no_grad():
             for imgs, masks in val_loader:
                 imgs, masks = imgs.to(device), masks.to(device)
@@ -79,11 +80,16 @@ def train():
                 if isinstance(outputs, list): outputs = outputs[0]
                 val_dice += calculate_metrics(outputs, masks)["Dice"]
 
-        history["train_loss"].append(train_loss / len(train_loader))
-        history["val_dice"].append(val_dice / len(val_loader))
-        print(f"Epoch {epoch+1} | Loss: {history['train_loss'][-1]:.4f} | Dice: {history['val_dice'][-1]:.4f}")
+        # Ensure these are floats before saving
+        avg_loss = float(train_loss / len(train_loader))
+        avg_dice = float(val_dice / len(val_loader))
+        
+        history["train_loss"].append(avg_loss)
+        history["val_dice"].append(avg_dice)
+        
+        print(f"Epoch {epoch+1} | Loss: {avg_loss:.4f} | Dice: {avg_dice:.4f}")
 
-        # Save History to H5 & Model to PTH
+        # Save History
         with h5py.File(f"results_{args.save_name}.h5", "w") as f:
             f.create_dataset("train_loss", data=history["train_loss"])
             f.create_dataset("val_dice", data=history["val_dice"])

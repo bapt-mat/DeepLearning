@@ -17,12 +17,12 @@ source $TMPDIR/venv/bin/activate
 
 echo "📦 Installing..."
 pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113 --no-cache-dir
-pip install --no-cache-dir "numpy<2" h5py opencv-python-headless pandas tqdm scipy segmentation-models-pytorch
+# FIXED: Added 'numba' to this list
+pip install --no-cache-dir "numpy<2" h5py opencv-python-headless pandas tqdm scipy segmentation-models-pytorch numba
 
 DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# --- 1. TRAINING LOOP (8 Experiments) ---
-# Format: Arch | Encoder | Weights | Loss | Name
+# --- TRAINING LOOP (8 Experiments) ---
 EXPERIMENTS=(
   "unet resnet34 imagenet bce unet_baseline"
   "unet resnet34 None bce unet_scratch"
@@ -35,7 +35,7 @@ EXPERIMENTS=(
 )
 
 for exp in "${EXPERIMENTS[@]}"; do
-    set -- $exp # Split string into vars
+    set -- $exp 
     echo "🔥 Training $5..."
     python3 train.py --epochs 20 --data_dir $DATA --arch $1 --encoder $2 --weights $3 --loss $4 --save_name $5
     
