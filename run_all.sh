@@ -30,10 +30,11 @@ source /home_expes/tools/python/python3915_0_gpu/bin/activate
 if [ ! -d "\$TMPDIR/venv" ]; then python3 -m venv \$TMPDIR/venv; fi
 source \$TMPDIR/venv/bin/activate
 
-# 2. INSTALL DEPENDENCIES
-pip install --no-cache-dir "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 segmentation-models-pytorch numba --extra-index-url https://download.pytorch.org/whl/cu113
+# 2. INSTALL DEPENDENCIES (FIXED: Added upgrade + timm for SegFormer)
+# We force upgrade segmentation-models-pytorch to get the 'Segformer' class
+pip install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm --extra-index-url https://download.pytorch.org/whl/cu113
 
-# 3. DATA TRANSFER (SSD) - FIXED: Unique Folder per Job
+# 3. DATA TRANSFER (FIXED: Unique Folder per Job)
 SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 # We append the job name to the path to ensure isolation
 LOCAL_DATA="\$TMPDIR/dataset_${NAME}" 
@@ -88,4 +89,4 @@ submit_experiment "segformer_b0_scratch" "segformer" "mit_b0" "None" "bce"
 submit_experiment "segformer_b0_dice" "segformer" "mit_b0" "imagenet" "dice"
 
 echo "----------------------------------------"
-echo "🎉 All 8 experiments (100 Epochs) have been relaunched with UNIQUE data folders!"
+echo "🎉 All 8 experiments have been relaunched (Fixed Dependencies + Unique Paths)!"
