@@ -7,6 +7,7 @@ from pathlib import Path
 class ForgeryDataset(Dataset):
     def __init__(self, data_root, phase='train'):
         self.data_root = Path(data_root)
+        self.phase = phase
         self.images = []
         
         # 1. Collect paths
@@ -17,21 +18,28 @@ class ForgeryDataset(Dataset):
             m_path = mask_root / f"{p.stem}.npy"
             forg.append((str(p), 1, str(m_path) if m_path.exists() else None))
 
-        # 2. Stratified Split (80/20)
+        # 2. Stratified Split (80% Train, 20% Val)
+        # We use a fixed seed to ensure Train and Val never leak into each other
         def split(data):
-            np.random.seed(42)
+            np.random.seed(42) 
             perm = np.random.permutation(len(data))
             limit = int(0.8 * len(data))
-            return [data[i] for i in perm[:limit]] if phase == 'train' else [data[i] for i in perm[limit:]]
+            if phase == 'train':
+                return [data[i] for i in perm[:limit]]
+            else: # Validation / Test
+                return [data[i] for i in perm[limit:]]
 
         self.dataset = split(auth) + split(forg)
-        if phase == 'train': np.random.shuffle(self.dataset)
+        
+        if phase == 'train': 
+            np.random.shuffle(self.dataset)
 
     def __len__(self): return len(self.dataset)
     
     def __getitem__(self, idx):
         img_path, label, mask_path = self.dataset[idx]
         img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+        
         h, w, _ = img.shape
         mask = np.zeros((h, w), dtype=np.float32)
         if label == 1 and mask_path:
@@ -39,6 +47,7 @@ class ForgeryDataset(Dataset):
             if m.ndim == 3: m = m.max(axis=0)
             mask = (m > 0).astype(np.float32)
 
+        # Resize to 256x256
         img = cv2.resize(img, (256, 256))
         mask = cv2.resize(mask, (256, 256), interpolation=cv2.INTER_NEAREST)
         
