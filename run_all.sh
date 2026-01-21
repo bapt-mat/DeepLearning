@@ -8,7 +8,7 @@ submit_experiment() {
     WEIGHTS=$4
     LOSS=$5
     
-    echo "🚀 Submitting Job: $NAME ($ARCH | $ENCODER | $WEIGHTS | $LOSS)"
+    echo "🚀 Submitting Job: $NAME"
 
     # Create a temporary SLURM script
     cat <<EOT > run_${NAME}.sh
@@ -21,33 +21,29 @@ submit_experiment() {
 #SBATCH --error=logs/${NAME}_err_%j.log
 #SBATCH --job-name=$NAME
 
-# 1. SETUP ENV & PROXY
+# 1. SETUP PROXY & ENV VARIABLES
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 if [ -z "\$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="\$SLURM_TMPDIR"; fi
 
-# Load Base Python
+# 2. CREATE UNIQUE VIRTUAL ENVIRONMENT (Fixed: Unique Name)
+# We use the job name to create a unique venv for THIS specific job
+VENV_PATH="\$TMPDIR/venv_${NAME}"
+PYBIN="\$VENV_PATH/bin/python3"
+PIP="\$VENV_PATH/bin/pip"
+
+# Load base python to create the venv
 source /home_expes/tools/python/python3915_0_gpu/bin/activate
 
-# Create VENV in TMPDIR
-if [ ! -d "\$TMPDIR/venv" ]; then 
-    echo "🔧 Creating Virtual Environment..."
-    python3 -m venv \$TMPDIR/venv
-fi
+echo "🔧 Creating isolated environment at \$VENV_PATH..."
+python3 -m venv \$VENV_PATH
 
-# Define paths to force usage of the VENV
-PYBIN="\$TMPDIR/venv/bin/python3"
-PIP="\$TMPDIR/venv/bin/pip"
-
-# 2. INSTALL DEPENDENCIES (Using the VENV pip)
+# 3. INSTALL DEPENDENCIES (Into the unique venv)
 echo "📦 Installing libraries..."
 \$PIP install --no-cache-dir --upgrade pip
 \$PIP install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm --extra-index-url https://download.pytorch.org/whl/cu113
 
-# Debug: Check version
-\$PYBIN -c "import segmentation_models_pytorch; print(f'SMP Version: {segmentation_models_pytorch.__version__}')"
-
-# 3. DATA TRANSFER (Unique Folder per Job)
+# 4. DATA TRANSFER (Unique Folder)
 SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 LOCAL_DATA="\$TMPDIR/dataset_${NAME}" 
 
@@ -55,7 +51,7 @@ echo "🚀 Unpacking data to \$LOCAL_DATA..."
 mkdir -p \$LOCAL_DATA
 tar cf - -C \$SOURCE_DATA . | tar xf - -C \$LOCAL_DATA
 
-# 4. TRAIN (100 Epochs) - Using \$PYBIN explicitly
+# 5. TRAIN (100 Epochs) - Using explicit python path
 echo "🔥 Training $NAME..."
 \$PYBIN train.py \\
   --epochs 100 \\
@@ -66,7 +62,7 @@ echo "🔥 Training $NAME..."
   --loss $LOSS \\
   --save_name $NAME
 
-# 5. EVALUATE - Using \$PYBIN explicitly
+# 6. EVALUATE
 echo "📊 Evaluating $NAME..."
 \$PYBIN evaluate_official.py \\
   --data_dir \$LOCAL_DATA \\
@@ -74,13 +70,14 @@ echo "📊 Evaluating $NAME..."
   --encoder $ENCODER \\
   --save_name $NAME
 
-# 6. CLEANUP
+# 7. CLEANUP
 rm -rf \$LOCAL_DATA
+rm -rf \$VENV_PATH
 
 echo "✅ Done."
 EOT
 
-    # Submit the generated script
+    # Submit
     sbatch run_${NAME}.sh
 }
 
@@ -101,4 +98,4 @@ submit_experiment "segformer_b0_scratch" "segformer" "mit_b0" "None" "bce"
 submit_experiment "segformer_b0_dice" "segformer" "mit_b0" "imagenet" "dice"
 
 echo "----------------------------------------"
-echo "🎉 All 8 experiments relaunched using EXPLICIT python paths."
+echo "🎉 All 8 experiments relaunched with FULL ISOLATION (Data + Venv)."
