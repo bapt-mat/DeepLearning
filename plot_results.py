@@ -114,4 +114,4 @@ def plot_visuals():
 if __name__ == "__main__":
     plot_history()
     print("-" * 30)
-    plot_visuals() #ok
+    plot_visuals() #o
