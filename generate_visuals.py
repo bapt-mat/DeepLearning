@@ -34,31 +34,29 @@ def save_visuals():
     # 3. Find Images with ACTUAL WHITE PIXELS in the mask
     indices_to_save = []
     
-    # We loop safely using the dataset length
-    # We set a limit (e.g. check first 2000) to avoid waiting too long if something is wrong
-    max_checks = min(len(val_ds), 3000)
+    # Increased safety limit since we want more images
+    max_checks = min(len(val_ds), 4000)
     
     for i in range(max_checks):
         try:
             # Load the actual tensors via the standard method (Safe)
-            # This avoids the IndexError by letting the dataset handle the indexing
             img_tensor, mask_tensor = val_ds[i]
             
             # --- FILTER: Check for white pixels ---
-            # If the mask has white pixels (sum > 10), it is a forgery we want to see
             if mask_tensor.sum() > 10: 
                 indices_to_save.append(i)
                 print(f"   ✅ Found valid sample at index {i} (Mask pixels: {mask_tensor.sum().item()})")
                 
-                if len(indices_to_save) >= 5: # Stop after finding 5
+                # --- CHANGED HERE: Stop after finding 10 ---
+                if len(indices_to_save) >= 10: 
                     break
                     
         except Exception as e:
-            print(f"   ⚠️ Error loading index {i}: {e}")
+            # print(f"   ⚠️ Error loading index {i}: {e}") # Optional: Comment out to reduce noise
             continue
 
     if len(indices_to_save) == 0:
-        print("❌ Error: Could not find ANY samples with valid masks. Check your dataset path/loading logic.")
+        print("❌ Error: Could not find ANY samples with valid masks.")
         return
 
     # 4. Save Predictions

@@ -4,9 +4,8 @@ import numpy as np
 import os
 
 # --- CONFIGURATION ---
-# change this to match your filename
 MODEL_NAME = "unet_baseline_long" 
-HISTORY_FILE = f"history_{MODEL_NAME}.h5"
+HISTORY_FILE = f"results_{MODEL_NAME}.h5"
 VISUALS_FILE = f"visuals_{MODEL_NAME}.h5"
 
 def plot_history():
@@ -16,46 +15,50 @@ def plot_history():
         return
 
     print(f"📊 Plotting training history for {MODEL_NAME}...")
-    with h5py.File(HISTORY_FILE, 'r') as f:
-        # Load data
-        epochs = f['epochs'][:]
-        loss = f['loss'][:]         # Training Loss
-        val_loss = f['val_loss'][:] # Validation Loss
-        val_dice = f['val_dice'][:] # Validation Dice Score
+    
+    try:
+        with h5py.File(HISTORY_FILE, 'r') as f:
+            epochs = f['epochs'][:]
+            train_loss = f['train_loss'][:] 
+            val_dice = f['val_dice'][:] 
 
-        # Create Figure
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-        
-        # Plot 1: Loss
-        ax1.plot(epochs, loss, label='Train Loss', color='gray', linestyle='--', alpha=0.6)
-        ax1.plot(epochs, val_loss, label='Val Loss', color='red', linewidth=2)
-        ax1.set_title("BCE Loss (Lower is Better)")
-        ax1.set_xlabel("Epochs")
-        ax1.set_ylabel("Loss")
-        ax1.grid(True, alpha=0.3)
-        ax1.legend()
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+            
+            # Plot 1: Training Loss
+            ax1.plot(epochs, train_loss, label='Train Loss', color='blue', linewidth=2)
+            ax1.set_title("Training Loss (BCE)")
+            ax1.set_xlabel("Epochs")
+            ax1.set_ylabel("Loss")
+            ax1.grid(True, alpha=0.3)
+            ax1.legend()
 
-        # Plot 2: Dice Score
-        ax2.plot(epochs, val_dice, label='Validation Dice', color='blue', linewidth=2)
-        ax2.axhline(y=0.5, color='green', linestyle=':', label="0.5 Threshold")
-        ax2.set_title("Dice Score (Higher is Better)")
-        ax2.set_xlabel("Epochs")
-        ax2.set_ylabel("Dice Coefficient")
-        ax2.set_ylim(0, 1.0)
-        ax2.grid(True, alpha=0.3)
-        ax2.legend()
+            # Plot 2: Dice Score
+            ax2.plot(epochs, val_dice, label='Validation Dice', color='green', linewidth=2)
+            ax2.axhline(y=0.5, color='gray', linestyle=':', label="0.5 Threshold")
+            
+            # Mark Best Epoch
+            best_idx = np.argmax(val_dice)
+            ax2.scatter(epochs[best_idx], val_dice[best_idx], color='gold', s=100, edgecolors='black', zorder=5)
+            ax2.text(epochs[best_idx], val_dice[best_idx] - 0.05, f"Best: {val_dice[best_idx]:.3f}", ha='center')
 
-        plt.suptitle(f"Training Dynamics: {MODEL_NAME}", fontsize=16)
-        plt.tight_layout()
-        
-        # Save
-        save_path = f"plot_history_{MODEL_NAME}.png"
-        plt.savefig(save_path, dpi=300)
-        print(f"✅ Saved chart: {save_path}")
-        plt.close()
+            ax2.set_title("Validation Dice Score")
+            ax2.set_xlabel("Epochs")
+            ax2.set_ylabel("Dice")
+            ax2.set_ylim(0, 1.0)
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+
+            plt.suptitle(f"Training Dynamics: {MODEL_NAME}", fontsize=16)
+            plt.tight_layout()
+            plt.savefig(f"plot_history_{MODEL_NAME}.png", dpi=300)
+            print(f"✅ Saved chart: plot_history_{MODEL_NAME}.png")
+            plt.close()
+            
+    except Exception as e:
+        print(f"❌ Error plotting history: {e}")
 
 def plot_visuals():
-    """Plots a grid of Input vs Ground Truth vs Prediction."""
+    """Plots a 3-Row Grid (Horizontal Layout)."""
     if not os.path.exists(VISUALS_FILE):
         print(f"⚠️  File not found: {VISUALS_FILE} (Skipping visual plot)")
         return
@@ -65,11 +68,20 @@ def plot_visuals():
         keys = sorted(list(f.keys()))
         n_samples = len(keys)
         
-        # Create Grid: Rows=Samples, Cols=3 (Img, GT, Pred)
-        fig, axes = plt.subplots(n_samples, 3, figsize=(12, 4 * n_samples))
-        plt.subplots_adjust(top=0.95, hspace=0.3)
-        
+        if n_samples == 0:
+            print("⚠️  No samples found in visuals file.")
+            return
+
+        # --- HORIZONTAL LAYOUT SETUP ---
+        # 3 Rows (Input, GT, Pred) x N Columns (Samples)
+        # We adjust figure width based on number of samples
+        fig, axes = plt.subplots(3, n_samples, figsize=(n_samples * 3, 10))
+        plt.subplots_adjust(wspace=0.1, hspace=0.2)
         fig.suptitle(f"Qualitative Results: {MODEL_NAME}", fontsize=16)
+
+        # Handle 1-sample case (axes would be 1D)
+        if n_samples == 1:
+            axes = axes[:, np.newaxis]
 
         for i, key in enumerate(keys):
             grp = f[key]
@@ -77,34 +89,37 @@ def plot_visuals():
             gt = grp['gt'][:]
             pred = grp['pred'][:]
             
-            # --- Column 1: Input Image ---
-            ax = axes[i, 0] if n_samples > 1 else axes[0]
+            # Row 1: Input Image
+            ax = axes[0, i]
             ax.imshow(img)
-            if i == 0: ax.set_title("Input Image", fontweight='bold')
-            ax.set_ylabel(key, fontsize=10)
+            if i == 0: ax.set_ylabel("Input Image", fontsize=12, fontweight='bold')
+            ax.set_title(f"Sample {i+1}", fontsize=10)
             ax.set_xticks([])
             ax.set_yticks([])
 
-            # --- Column 2: Ground Truth ---
-            ax = axes[i, 1] if n_samples > 1 else axes[1]
+            # Row 2: Ground Truth
+            ax = axes[1, i]
             ax.imshow(gt, cmap='gray', vmin=0, vmax=1)
-            if i == 0: ax.set_title("Ground Truth", fontweight='bold')
-            ax.axis('off')
+            if i == 0: ax.set_ylabel("Ground Truth", fontsize=12, fontweight='bold')
+            ax.set_xticks([])
+            ax.set_yticks([])
 
-            # --- Column 3: Prediction ---
-            # We display it as a heatmap to see confidence, or threshold it
-            ax = axes[i, 2] if n_samples > 1 else axes[2]
-            
-            # Show Binary Mask (> 0.5)
+            # Row 3: Prediction
+            ax = axes[2, i]
             pred_binary = (pred > 0.5).astype(float)
             ax.imshow(pred_binary, cmap='gray', vmin=0, vmax=1)
+            if i == 0: ax.set_ylabel("Prediction", fontsize=12, fontweight='bold')
+            ax.set_yticks([])
             
-            # Optional: Add confidence score text
+            # --- CLASSIFICATION LOGIC ---
+            # If max probability > 0.5, we classify it as Forged
             max_conf = np.max(pred)
-            ax.text(10, 25, f"Max Conf: {max_conf:.2f}", color='yellow', fontsize=9, backgroundcolor='black')
-
-            if i == 0: ax.set_title("Prediction (Binary)", fontweight='bold')
-            ax.axis('off')
+            is_forged = max_conf > 0.5
+            
+            label_text = f"Pred: FORGED\n(Conf: {max_conf:.2f})" if is_forged else f"Pred: AUTHENTIC\n(Conf: {max_conf:.2f})"
+            label_color = 'red' if is_forged else 'green'
+            
+            ax.set_xlabel(label_text, fontsize=10, fontweight='bold', color=label_color)
 
         save_path = f"plot_visuals_{MODEL_NAME}.png"
         plt.savefig(save_path, bbox_inches='tight', dpi=150)
@@ -114,4 +129,4 @@ def plot_visuals():
 if __name__ == "__main__":
     plot_history()
     print("-" * 30)
-    plot_visuals() #o
+    plot_visuals()

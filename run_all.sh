@@ -20,7 +20,17 @@ pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url http
 # FIXED: Added 'numba' to this list
 pip install --no-cache-dir "numpy<2" h5py opencv-python-headless pandas tqdm scipy segmentation-models-pytorch numba
 
-DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
+SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
+LOCAL_DATA="$TMPDIR/dataset"
+
+# 2. COPY DATA (Fast copy using tar)
+echo "🚀 Copying data to local SSD..."
+mkdir -p $LOCAL_DATA
+tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
+
+# 3. UPDATE DATA PATH IN COMMANDS
+# Change $SOURCE_DATA to $LOCAL_DATA in your python commands below
+DATA=$LOCAL_DATA
 
 # --- TRAINING LOOP (8 Experiments) ---
 EXPERIMENTS=(
@@ -37,7 +47,7 @@ EXPERIMENTS=(
 for exp in "${EXPERIMENTS[@]}"; do
     set -- $exp 
     echo "🔥 Training $5..."
-    python3 train.py --epochs 20 --data_dir $DATA --arch $1 --encoder $2 --weights $3 --loss $4 --save_name $5
+    python3 train.py --epochs 80 --data_dir $DATA --arch $1 --encoder $2 --weights $3 --loss $4 --save_name $5
     
     echo "📊 Evaluating $5..."
     python3 evaluate_official.py --data_dir $DATA --arch $1 --encoder $2 --save_name $5
