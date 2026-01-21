@@ -19,8 +19,17 @@ source $TMPDIR/venv/bin/activate
 # 2. INSTALL (Safety check)
 pip install --no-cache-dir "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 segmentation-models-pytorch numba --extra-index-url https://download.pytorch.org/whl/cu113
 
-# 3. PATHS
-DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
+SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
+LOCAL_DATA="$TMPDIR/dataset"
+
+# 2. COPY DATA (Fast copy using tar)
+echo "🚀 Copying data to local SSD..."
+mkdir -p $LOCAL_DATA
+tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
+
+# 3. UPDATE DATA PATH IN COMMANDS
+# Change $SOURCE_DATA to $LOCAL_DATA in your python commands below
+DATA=$LOCAL_DATA
 
 # 4. RUN LONG TRAINING (60 Epochs)
 echo "🔥 Starting Long Training for U-Net Baseline..."
