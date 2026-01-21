@@ -16,7 +16,7 @@ submit_experiment() {
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
-#SBATCH --time=20:00:00     # <--- INCREASED to 20h for 100 Epochs
+#SBATCH --time=20:00:00
 #SBATCH --output=logs/${NAME}_%j.log
 #SBATCH --error=logs/${NAME}_err_%j.log
 #SBATCH --job-name=$NAME
@@ -33,9 +33,12 @@ source \$TMPDIR/venv/bin/activate
 # 2. INSTALL DEPENDENCIES
 pip install --no-cache-dir "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 segmentation-models-pytorch numba --extra-index-url https://download.pytorch.org/whl/cu113
 
-# 3. DATA TRANSFER (SSD)
+# 3. DATA TRANSFER (SSD) - FIXED: Unique Folder per Job
 SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
-LOCAL_DATA="\$TMPDIR/dataset"
+# We append the job name to the path to ensure isolation
+LOCAL_DATA="\$TMPDIR/dataset_${NAME}" 
+
+echo "🚀 Unpacking data to \$LOCAL_DATA..."
 mkdir -p \$LOCAL_DATA
 tar cf - -C \$SOURCE_DATA . | tar xf - -C \$LOCAL_DATA
 
@@ -58,6 +61,9 @@ python3 evaluate_official.py \\
   --encoder $ENCODER \\
   --save_name $NAME
 
+# 6. CLEANUP (Save space on /tmp)
+rm -rf \$LOCAL_DATA
+
 echo "✅ Done."
 EOT
 
@@ -68,33 +74,18 @@ EOT
 # ==========================================
 # 🧪 GROUP A: U-NET FAMILY (4 Jobs)
 # ==========================================
-# 1. Baseline
 submit_experiment "unet_baseline" "unet" "resnet34" "imagenet" "bce"
-
-# 2. Ablation: From Scratch (No Pre-training)
 submit_experiment "unet_scratch" "unet" "resnet34" "None" "bce"
-
-# 3. Ablation: Dice Loss
 submit_experiment "unet_dice" "unet" "resnet34" "imagenet" "dice"
-
-# 4. Ablation: Deep Supervision (Custom Arch)
 submit_experiment "unet_deepsup" "deepsup" "resnet34" "imagenet" "bce"
-
 
 # ==========================================
 # 🧪 GROUP B: SEGFORMER FAMILY (4 Jobs)
 # ==========================================
-# 5. Baseline (MiT-B0)
 submit_experiment "segformer_b0_baseline" "segformer" "mit_b0" "imagenet" "bce"
-
-# 6. Ablation: Larger Capacity (MiT-B2)
 submit_experiment "segformer_b2_capacity" "segformer" "mit_b2" "imagenet" "bce"
-
-# 7. Ablation: From Scratch (Data Hunger Check)
 submit_experiment "segformer_b0_scratch" "segformer" "mit_b0" "None" "bce"
-
-# 8. Ablation: Dice Loss
 submit_experiment "segformer_b0_dice" "segformer" "mit_b0" "imagenet" "dice"
 
 echo "----------------------------------------"
-echo "🎉 All 8 experiments (100 Epochs) have been launched!"
+echo "🎉 All 8 experiments (100 Epochs) have been relaunched with UNIQUE data folders!"
