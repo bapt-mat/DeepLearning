@@ -1,64 +1,68 @@
 import h5py
 import matplotlib.pyplot as plt
+import glob
 import os
 
-# Define the 3 specific studies you need for the report
-studies = {
-    "1_Pretraining_Effect": {
-        "title": "Effect of Pre-training (ResNet-34)",
-        "models": {
-            "unet_baseline": {"label": "ImageNet Weights", "color": "green", "style": "-"},
-            "unet_scratch":  {"label": "Random Init (Scratch)", "color": "red", "style": "--"}
-        }
-    },
-    "2_Architecture_Compare": {
-        "title": "CNN (U-Net) vs Transformer (SegFormer)",
-        "models": {
-            "unet_baseline":      {"label": "U-Net (ResNet34)", "color": "blue", "style": "-"},
-            "segformer_baseline": {"label": "SegFormer (B0)", "color": "orange", "style": "-"}
-        }
-    },
-    "3_Loss_Function": {
-        "title": "BCE vs Dice Loss (U-Net)",
-        "models": {
-            "unet_baseline": {"label": "BCE Loss", "color": "purple", "style": "-"},
-            "unet_dice":     {"label": "Dice Loss", "color": "cyan", "style": "--"}
-        }
-    }
-}
+# 1. Find all visual files
+files = sorted(glob.glob("visuals_*.h5"))
 
-for study_name, config in studies.items():
-    plt.figure(figsize=(10, 6))
+if not files:
+    print("❌ No 'visuals_*.h5' files found! Make sure you downloaded them to this folder.")
+    exit()
+
+print(f"found {len(files)} model files: {files}")
+
+# 2. Get the list of sample keys (sample_0, sample_1, etc.) from the first file
+with h5py.File(files[0], 'r') as f:
+    sample_keys = list(f.keys())
+
+# 3. Iterate through each sample image (we saved 5 samples)
+for sample_key in sample_keys:
+    print(f"📊 Generating comparison for {sample_key}...")
     
-    for filename, style in config["models"].items():
-        fname = f"results_{filename}.h5"
-        if not os.path.exists(fname):
-            print(f"⚠️ Missing file: {fname} (Skipping)")
-            continue
-            
+    n_models = len(files)
+    fig, axes = plt.subplots(n_models, 3, figsize=(10, 3 * n_models))
+    plt.subplots_adjust(top=0.95, bottom=0.05, hspace=0.4)
+    
+    fig.suptitle(f"Visual Comparison: {sample_key}", fontsize=16)
+
+    for row, filename in enumerate(files):
+        model_name = filename.replace("visuals_", "").replace(".h5", "")
+        
         try:
-            with h5py.File(fname, 'r') as f:
-                # Load Dice scores
-                dice = f['val_dice'][:]
-                epochs = f['epochs'][:]
+            with h5py.File(filename, 'r') as f:
+                if sample_key not in f: continue
                 
-                # Plot
-                plt.plot(epochs, dice, 
-                         label=style["label"], 
-                         color=style["color"], 
-                         linestyle=style["style"], 
-                         linewidth=2)
-        except Exception as e:
-            print(f"Error reading {fname}: {e}")
+                grp = f[sample_key]
+                img = grp['image'][:]
+                gt = grp['gt'][:]
+                pred = grp['pred'][:]
+                
+                # Column 1: Original Image (Only need to label it once)
+                ax = axes[row, 0]
+                ax.imshow(img)
+                if row == 0: ax.set_title("Input Image", fontsize=10)
+                ax.set_ylabel(model_name, rotation=90, size='large', weight='bold') # Model Name on the left
+                ax.set_xticks([])
+                ax.set_yticks([])
+                
+                # Column 2: Ground Truth
+                ax = axes[row, 1]
+                ax.imshow(gt, cmap='gray')
+                if row == 0: ax.set_title("Ground Truth", fontsize=10)
+                ax.axis('off')
+                
+                # Column 3: Prediction
+                ax = axes[row, 2]
+                ax.imshow(pred > 0.5, cmap='gray') # Binary threshold
+                if row == 0: ax.set_title("Prediction", fontsize=10)
+                ax.axis('off')
 
-    plt.title(config["title"], fontsize=14)
-    plt.xlabel("Epochs", fontsize=12)
-    plt.ylabel("Validation Dice Score", fontsize=12)
-    plt.grid(True, alpha=0.3)
-    plt.legend(fontsize=11)
-    
-    # Save plot
-    save_path = f"plot_{study_name}.png"
-    plt.savefig(save_path, dpi=300)
-    print(f"✅ Saved plot: {save_path}")
+        except Exception as e:
+            print(f"Error reading {filename}: {e}")
+
+    # Save the huge grid
+    save_name = f"comparison_{sample_key}.png"
+    plt.savefig(save_name, bbox_inches='tight', dpi=150)
+    print(f"✅ Saved {save_name}")
     plt.close()
