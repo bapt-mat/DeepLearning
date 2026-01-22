@@ -45,7 +45,7 @@ def train():
     # Model
     weights_val = None if args.weights == 'None' else args.weights
     model = FlexibleModel(arch=args.arch, encoder=args.encoder, weights=weights_val).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
     criterion = DiceLoss() if args.loss == 'dice' else torch.nn.BCEWithLogitsLoss()
     
     history = {"train_loss": [], "val_dice": []}

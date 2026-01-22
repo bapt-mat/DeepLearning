@@ -1,132 +1,141 @@
 import h5py
 import matplotlib.pyplot as plt
-import numpy as np
 import os
+import numpy as np
 
-# --- CONFIGURATION ---
-MODEL_NAME = "unet_baseline_long" 
-HISTORY_FILE = f"results_{MODEL_NAME}.h5"
-VISUALS_FILE = f"visuals_{MODEL_NAME}.h5"
-
-def plot_history():
-    """Plots Loss and Dice curves from the training history."""
-    if not os.path.exists(HISTORY_FILE):
-        print(f"⚠️  File not found: {HISTORY_FILE} (Skipping history plot)")
-        return
-
-    print(f"📊 Plotting training history for {MODEL_NAME}...")
+# --- CONFIGURATION: Grouping your files for the report ---
+EXPERIMENTS = {
+    # STUDY 1: Architecture Comparison (U-Net vs SegFormer)
+    "Architecture": {
+        "files": [
+            "results_unet_baseline.h5",
+            "results_segformer_b0_baseline.h5",
+            "results_segformer_b2_capacity.h5"
+        ],
+        "labels": ["U-Net (ResNet34)", "SegFormer B0", "SegFormer B2"],
+        "title": "Ablation: Model Architecture"
+    },
     
+    # STUDY 2: Loss Function (BCE vs Dice)
+    "Loss Function": {
+        "files": [
+            "results_unet_baseline.h5",
+            "results_unet_dice.h5",
+            "results_segformer_b0_baseline.h5",
+            "results_segformer_b0_dice.h5"
+        ],
+        "labels": ["U-Net (BCE)", "U-Net (Dice)", "SegFormer (BCE)", "SegFormer (Dice)"],
+        "title": "Ablation: Loss Function Impact"
+    },
+
+    # STUDY 3: Pre-training vs Scratch
+    "Pre-training": {
+        "files": [
+            "results_unet_baseline.h5",
+            "results_unet_scratch.h5",
+            "results_segformer_b0_baseline.h5",
+            "results_segformer_b0_scratch.h5"
+        ],
+        "labels": ["U-Net (ImageNet)", "U-Net (Scratch)", "SegFormer (ImageNet)", "SegFormer (Scratch)"],
+        "title": "Ablation: Impact of Pre-training"
+    },
+
+    # STUDY 4: Data Augmentation
+    "Augmentation": {
+        "files": [
+            "results_unet_baseline.h5",
+            "results_unet_aug.h5"
+        ],
+        "labels": ["Standard (Resize Only)", "Augmented (Flip/Rotate)"],
+        "title": "Ablation: Data Augmentation"
+    }
+}
+
+def load_history(filename):
+    """Robust loader that finds the correct keys (loss vs Train_Loss)."""
+    if not os.path.exists(filename):
+        print(f"⚠️ Warning: {filename} not found. Skipping.")
+        return None
+    
+    data = {}
     try:
-        with h5py.File(HISTORY_FILE, 'r') as f:
-            epochs = f['epochs'][:]
-            train_loss = f['train_loss'][:] 
-            val_dice = f['val_dice'][:] 
-
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-            
-            # Plot 1: Training Loss
-            ax1.plot(epochs, train_loss, label='Train Loss', color='blue', linewidth=2)
-            ax1.set_title("Training Loss (BCE)")
-            ax1.set_xlabel("Epochs")
-            ax1.set_ylabel("Loss")
-            ax1.grid(True, alpha=0.3)
-            ax1.legend()
-
-            # Plot 2: Dice Score
-            ax2.plot(epochs, val_dice, label='Validation Dice', color='green', linewidth=2)
-            ax2.axhline(y=0.5, color='gray', linestyle=':', label="0.5 Threshold")
-            
-            # Mark Best Epoch
-            best_idx = np.argmax(val_dice)
-            ax2.scatter(epochs[best_idx], val_dice[best_idx], color='gold', s=100, edgecolors='black', zorder=5)
-            ax2.text(epochs[best_idx], val_dice[best_idx] - 0.05, f"Best: {val_dice[best_idx]:.3f}", ha='center')
-
-            ax2.set_title("Validation Dice Score")
-            ax2.set_xlabel("Epochs")
-            ax2.set_ylabel("Dice")
-            ax2.set_ylim(0, 1.0)
-            ax2.grid(True, alpha=0.3)
-            ax2.legend()
-
-            plt.suptitle(f"Training Dynamics: {MODEL_NAME}", fontsize=16)
-            plt.tight_layout()
-            plt.savefig(f"plot_history_{MODEL_NAME}.png", dpi=300)
-            print(f"✅ Saved chart: plot_history_{MODEL_NAME}.png")
-            plt.close()
-            
+        with h5py.File(filename, "r") as f:
+            for k in f.keys():
+                data[k] = np.array(f[k])
     except Exception as e:
-        print(f"❌ Error plotting history: {e}")
+        print(f"❌ Error reading {filename}: {e}")
+        return None
+    return data
 
-def plot_visuals():
-    """Plots a 3-Row Grid (Horizontal Layout)."""
-    if not os.path.exists(VISUALS_FILE):
-        print(f"⚠️  File not found: {VISUALS_FILE} (Skipping visual plot)")
+def get_key(history, candidates):
+    """Finds the first matching key from a list of candidates."""
+    for key in candidates:
+        # Check exact match
+        if key in history: return key
+        # Check case-insensitive
+        for h_key in history.keys():
+            if h_key.lower() == key.lower(): return h_key
+    return None
+
+def plot_ablation(experiment_name, config):
+    print(f"📊 Plotting {experiment_name}...")
+    files = config["files"]
+    labels = config["labels"]
+    
+    # Create 2 subplots: Training Loss and Validation Metric
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    has_data = False
+    
+    for f_name, label in zip(files, labels):
+        history = load_history(f_name)
+        if history is None: continue
+        
+        # 1. FIND KEYS
+        loss_key = get_key(history, ['loss', 'train_loss', 'Train_Loss', 'bce_loss'])
+        # Try finding Validation Dice first, then Loss
+        val_key = get_key(history, ['val_dice', 'val_score', 'val_iou', 'val_loss'])
+        
+        if loss_key is None:
+            print(f"   ⚠️ Skipping {f_name}: No loss key found.")
+            continue
+            
+        has_data = True
+        epochs = range(1, len(history[loss_key]) + 1)
+        
+        # 2. PLOT TRAINING LOSS
+        ax1.plot(epochs, history[loss_key], label=label, linewidth=2)
+        
+        # 3. PLOT VALIDATION METRIC
+        if val_key:
+            ax2.plot(epochs, history[val_key], label=f"{label}", linewidth=2, linestyle='--')
+            ylabel = "Validation Score (Dice)" if 'dice' in val_key.lower() else "Validation Loss"
+        else:
+            ylabel = "Metric"
+
+    if not has_data:
+        plt.close()
         return
 
-    print(f"📸 Plotting visual predictions for {MODEL_NAME}...")
-    with h5py.File(VISUALS_FILE, 'r') as f:
-        keys = sorted(list(f.keys()))
-        n_samples = len(keys)
-        
-        if n_samples == 0:
-            print("⚠️  No samples found in visuals file.")
-            return
+    # Styling
+    ax1.set_title(f"{config['title']} - Training Loss")
+    ax1.set_xlabel("Epochs")
+    ax1.set_ylabel("Loss (Lower is better)")
+    ax1.legend()
+    ax1.grid(True, linestyle='--', alpha=0.6)
 
-        # --- HORIZONTAL LAYOUT SETUP ---
-        # 3 Rows (Input, GT, Pred) x N Columns (Samples)
-        # We adjust figure width based on number of samples
-        fig, axes = plt.subplots(3, n_samples, figsize=(n_samples * 3, 10))
-        plt.subplots_adjust(wspace=0.1, hspace=0.2)
-        fig.suptitle(f"Qualitative Results: {MODEL_NAME}", fontsize=16)
+    ax2.set_title(f"{config['title']} - Validation Performance")
+    ax2.set_xlabel("Epochs")
+    ax2.set_ylabel(ylabel) # Dynamic label based on what was found
+    ax2.legend()
+    ax2.grid(True, linestyle='--', alpha=0.6)
 
-        # Handle 1-sample case (axes would be 1D)
-        if n_samples == 1:
-            axes = axes[:, np.newaxis]
-
-        for i, key in enumerate(keys):
-            grp = f[key]
-            img = grp['image'][:]
-            gt = grp['gt'][:]
-            pred = grp['pred'][:]
-            
-            # Row 1: Input Image
-            ax = axes[0, i]
-            ax.imshow(img)
-            if i == 0: ax.set_ylabel("Input Image", fontsize=12, fontweight='bold')
-            ax.set_title(f"Sample {i+1}", fontsize=10)
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-            # Row 2: Ground Truth
-            ax = axes[1, i]
-            ax.imshow(gt, cmap='gray', vmin=0, vmax=1)
-            if i == 0: ax.set_ylabel("Ground Truth", fontsize=12, fontweight='bold')
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-            # Row 3: Prediction
-            ax = axes[2, i]
-            pred_binary = (pred > 0.5).astype(float)
-            ax.imshow(pred_binary, cmap='gray', vmin=0, vmax=1)
-            if i == 0: ax.set_ylabel("Prediction", fontsize=12, fontweight='bold')
-            ax.set_yticks([])
-            
-            # --- CLASSIFICATION LOGIC ---
-            # If max probability > 0.5, we classify it as Forged
-            max_conf = np.max(pred)
-            is_forged = max_conf > 0.5
-            
-            label_text = f"Pred: FORGED\n(Conf: {max_conf:.2f})" if is_forged else f"Pred: AUTHENTIC\n(Conf: {max_conf:.2f})"
-            label_color = 'red' if is_forged else 'green'
-            
-            ax.set_xlabel(label_text, fontsize=10, fontweight='bold', color=label_color)
-
-        save_path = f"plot_visuals_{MODEL_NAME}.png"
-        plt.savefig(save_path, bbox_inches='tight', dpi=150)
-        print(f"✅ Saved grid: {save_path}")
-        plt.close()
+    plt.tight_layout()
+    
+    # Save
+    safe_name = experiment_name.replace(" ", "_").lower()
+    plt.savefig(f"plot_{safe_name}.png", dpi=300)
+    print(f"✅ Saved plot_{safe_name}.png")
 
 if __name__ == "__main__":
-    plot_history()
-    print("-" * 30)
-    plot_visuals()
+    for name, config in EXPERIMENTS.items():
+        plot_ablation(name, config)
