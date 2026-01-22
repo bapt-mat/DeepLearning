@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Function to create and submit a job
+# Function to submit a job with AUTO-CLEANUP
 submit_experiment() {
     NAME=$1
     ARCH=$2
@@ -10,7 +10,6 @@ submit_experiment() {
     
     echo "🚀 Submitting Job: $NAME"
 
-    # Create a temporary SLURM script
     cat <<EOT > run_${NAME}.sh
 #!/bin/bash
 #SBATCH --partition=GPU
@@ -21,33 +20,46 @@ submit_experiment() {
 #SBATCH --error=logs/${NAME}_err_%j.log
 #SBATCH --job-name=$NAME
 
-# 1. SETUP PROXY
+# 1. SETUP ENV & CLEANUP TRAP
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 if [ -z "\$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="\$SLURM_TMPDIR"; fi
 
-# 2. ACTIVATE SHARED ENVIRONMENT
-# We point to the master environment created in Step 1
-VENV_PATH="\$HOME/venv_master_100"
-if [ ! -d "\$VENV_PATH" ]; then
-    echo "❌ Error: Master environment not found at \$VENV_PATH. Please run setup_env.sh first!"
-    exit 1
-fi
-source \$VENV_PATH/bin/activate
-echo "✅ Activated shared environment: \$VENV_PATH"
+# Define paths
+LOCAL_DATA="\$TMPDIR/dataset_${NAME}"
+VENV_PATH="\$TMPDIR/venv_${NAME}"
 
-# 3. DATA TRANSFER (Unique Temp Folder)
+# SAFETY: If the job crashes or finishes, FORCE delete the data/venv
+cleanup() {
+    echo "🧹 TRAILING CLEANUP: Deleting \$LOCAL_DATA and \$VENV_PATH"
+    rm -rf \$LOCAL_DATA
+    rm -rf \$VENV_PATH
+}
+trap cleanup EXIT
+
+# 2. CREATE VENV
+# Load base python
+source /home_expes/tools/python/python3915_0_gpu/bin/activate
+
+echo "🔧 Creating isolated environment..."
+python3 -m venv \$VENV_PATH
+PYBIN="\$VENV_PATH/bin/python3"
+PIP="\$VENV_PATH/bin/pip"
+
+# 3. INSTALL DEPENDENCIES (Reduced size)
+echo "📦 Installing libraries..."
+\$PIP install --no-cache-dir --upgrade pip
+\$PIP install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm albumentations scikit-learn pandas numba --extra-index-url https://download.pytorch.org/whl/cu113
+
+# 4. DATA TRANSFER
 SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
-LOCAL_DATA="\$TMPDIR/dataset_${NAME}" 
-
-echo "🚀 Unpacking data to \$LOCAL_DATA..."
+echo "🚀 Unpacking data..."
 mkdir -p \$LOCAL_DATA
-# We use 'tar' but ignore errors slightly in case of weird permissions, though space should be fine now.
 tar cf - -C \$SOURCE_DATA . | tar xf - -C \$LOCAL_DATA
 
-# 4. TRAIN (100 Epochs)
+# 5. TRAIN (100 Epochs)
 echo "🔥 Training $NAME..."
-python3 train.py \\
+\$PYBIN train.py \\
   --epochs 100 \\
   --data_dir \$LOCAL_DATA \\
   --arch $ARCH \\
@@ -56,20 +68,18 @@ python3 train.py \\
   --loss $LOSS \\
   --save_name $NAME
 
-# 5. EVALUATE
+# 6. EVALUATE
 echo "📊 Evaluating $NAME..."
-python3 evaluate_official.py \\
+\$PYBIN evaluate_official.py \\
   --data_dir \$LOCAL_DATA \\
   --arch $ARCH \\
   --encoder $ENCODER \\
   --save_name $NAME
 
-# 6. CLEANUP
-rm -rf \$LOCAL_DATA
 echo "✅ Done."
+# Trap will handle cleanup automatically now
 EOT
 
-    # Submit
     sbatch run_${NAME}.sh
 }
 
@@ -90,4 +100,4 @@ submit_experiment "segformer_b0_scratch_100" "segformer" "mit_b0" "None" "bce"
 submit_experiment "segformer_b0_dice_100" "segformer" "mit_b0" "imagenet" "dice"
 
 echo "----------------------------------------"
-echo "🎉 All 8 experiments submitted using SHARED ENV to save disk space."
+echo "🎉 Experiments relaunched with AUTO-CLEANUP."
