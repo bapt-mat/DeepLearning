@@ -68,7 +68,7 @@ def rle_decode(mask_rle: str, shape: tuple[int, int]) -> npt.NDArray:
     """
 
     mask_rle = json.loads(mask_rle)
-    mask_rle = np.asarray(mask_rle, dtype=np.int32)
+    mask_rle = np.asarray(mask_rle, dtype=np.int32).flatten()
     starts = mask_rle[0::2]
     if sorted(starts) != list(starts):
         raise ParticipantVisibleError('Submitted values must be in ascending order.')
