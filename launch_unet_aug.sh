@@ -13,15 +13,16 @@ if [ -z "$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="$SLURM
 
 source /home_expes/tools/python/python3915_0_gpu/bin/activate
 
-# Create specific venv
+# Create Isolated Environment for Augmentation
 VENV_PATH="$TMPDIR/venv_unet_aug"
 python3 -m venv $VENV_PATH
 PYBIN="$VENV_PATH/bin/python3"
 PIP="$VENV_PATH/bin/pip"
 
-# 2. INSTALL LIBRARIES + ALBUMENTATIONS
+# 2. INSTALL DEPENDENCIES + ALBUMENTATIONS
 echo "📦 Installing libraries..."
 $PIP install --no-cache-dir --upgrade pip
+# Note: Added 'albumentations' and 'scikit-learn'
 $PIP install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm albumentations scikit-learn pandas --extra-index-url https://download.pytorch.org/whl/cu113
 
 # 3. DATA TRANSFER
@@ -31,7 +32,7 @@ echo "🚀 Unpacking data..."
 mkdir -p $LOCAL_DATA
 tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
 
-# 4. ENABLE AUGMENTATION FLAG
+# 4. ENABLE AUGMENTATION
 export USE_AUGMENTATION="True"
 echo "🌪️  USE_AUGMENTATION is set to: $USE_AUGMENTATION"
 
@@ -56,7 +57,4 @@ $PYBIN evaluate_full_metrics.py \
   --arch unet \
   --encoder resnet34
 
-# Cleanup
-rm -rf $LOCAL_DATA
-rm -rf $VENV_PATH
 echo "✅ Done."
