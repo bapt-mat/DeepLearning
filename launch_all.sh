@@ -54,7 +54,7 @@ tar cf - -C \$SOURCE_DATA . | tar xf - -C \$LOCAL_DATA
 # 5. TRAIN (100 Epochs) - Using explicit python path
 echo "🔥 Training $NAME..."
 \$PYBIN train.py \\
-  --epochs 100 \\
+  --epochs 50 \\
   --data_dir \$LOCAL_DATA \\
   --arch $ARCH \\
   --encoder $ENCODER \\
