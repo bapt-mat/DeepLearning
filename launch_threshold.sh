@@ -1,35 +1,47 @@
 #!/bin/bash
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:1
-#SBATCH --mem=24G
+#SBATCH --mem=12G
 #SBATCH --time=01:00:00
-#SBATCH --output=logs/thresh_study_%j.log
-#SBATCH --job-name=ThreshStudy
+#SBATCH --output=logs/thresh_safe_%j.log
+#SBATCH --job-name=ThreshSafe
 
+# 1. SETUP ENV
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
-if [ -z "$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="$SLURM_TMPDIR"; fi
 
-source /home_expes/tools/python/python3915_0_gpu/bin/activate
+SHARED_VENV="$HOME/DeepForg/venv_shared"
+# POINT DIRECTLY TO NETWORK STORAGE (Zero Disk Usage)
+DIRECT_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# Setup venv
-if [ -d "venv_segformer_b2_capacity" ]; then
-    source venv_segformer_b2_capacity/bin/activate
+# 2. ACTIVATE SHARED VENV & INSTALL LIBS
+if [ -d "$SHARED_VENV" ]; then
+    echo "✅ Found Shared Venv. Activating..."
+    source /home_expes/tools/python/python3915_0_gpu/bin/activate
+    source $SHARED_VENV/bin/activate
+    
+    # INSTALL MISSING LIBRARIES (Fixes "No module named pandas")
+    echo "📦 Checking for pandas & matplotlib..."
+    pip install --no-cache-dir pandas matplotlib scikit-learn
 else
-    python3 -m venv $TMPDIR/venv
-    source $TMPDIR/venv/bin/activate
-    pip install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm scikit-learn pandas matplotlib --extra-index-url https://download.pytorch.org/whl/cu113
+    echo "❌ Error: Shared Venv not found. Run setup first."
+    exit 1
 fi
 
-# Data Transfer
-SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
-LOCAL_DATA="$TMPDIR/dataset_thresh"
-mkdir -p $LOCAL_DATA
-tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
+# 3. RUN THRESHOLD STUDY
+# We run this on your BEST model: segformer_b2_capacity
+MODEL_PATH="segformer_b2_capacity.pth"
 
-# RUN STUDY on your BEST MODEL (Segformer B2)
-python3 study_threshold.py \
-    --data_dir $LOCAL_DATA \
-    --model_path "segformer_b2_capacity.pth" \
-    --arch "segformer" \
-    --encoder "mit_b2"
+if [ -f "$MODEL_PATH" ]; then
+    echo "📊 Running Threshold Study on $MODEL_PATH..."
+    
+    python3 study_threshold.py \
+        --data_dir "$DIRECT_DATA" \
+        --model_path "$MODEL_PATH" \
+        --arch "segformer" \
+        --encoder "mit_b2"
+else
+    echo "⚠️  Model file '$MODEL_PATH' not found in current directory!"
+fi
+
+echo "✅ Threshold study complete."

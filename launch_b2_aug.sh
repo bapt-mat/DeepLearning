@@ -3,8 +3,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/unet_aug_%j.log
-#SBATCH --job-name=UnetAug
+#SBATCH --output=logs/segformer_b2_aug_%j.log
+#SBATCH --job-name=SegB2Aug
 
 # 1. SETUP ENV
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
@@ -20,7 +20,7 @@ if [ -d "$SHARED_VENV" ]; then
     source /home_expes/tools/python/python3915_0_gpu/bin/activate
     source $SHARED_VENV/bin/activate
     
-    # INSTALL ALBUMENTATIONS (Required for this job)
+    # INSTALL ALBUMENTATIONS (Required for augmentation)
     echo "📦 Checking for albumentations..."
     pip install --no-cache-dir albumentations
 else
@@ -34,14 +34,14 @@ export USE_AUGMENTATION="True"
 echo "🌪️  USE_AUGMENTATION is set to: $USE_AUGMENTATION"
 
 # 4. TRAIN (Direct Read)
-NAME="unet_aug"
-echo "🔥 Training $NAME..."
+NAME="segformer_b2_aug"
+echo "🔥 Training $NAME (SegFormer B2 + Augmentation)..."
 
 python3 train.py \
   --epochs 100 \
   --data_dir "$DIRECT_DATA" \
-  --arch unet \
-  --encoder resnet34 \
+  --arch segformer \
+  --encoder mit_b2 \
   --weights imagenet \
   --loss bce \
   --save_name $NAME
@@ -51,7 +51,7 @@ echo "📊 Evaluating $NAME..."
 python3 evaluate_full_metrics.py \
   --data_dir "$DIRECT_DATA" \
   --save_name $NAME \
-  --arch unet \
-  --encoder resnet34
+  --arch segformer \
+  --encoder mit_b2
 
 echo "✅ Done."
