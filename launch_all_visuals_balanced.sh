@@ -51,7 +51,7 @@ for MODEL in "${MODELS[@]}"; do
             if [[ "$MODEL" == *"b2"* ]]; then ENCODER="mit_b2"; fi
         fi
         
-        python3 generate_visuals.py \
+        python3 generate_balanced.py \
             --data_dir "$DIRECT_DATA" \
             --save_name "$MODEL" \
             --arch "$ARCH" \
