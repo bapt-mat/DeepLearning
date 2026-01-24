@@ -3,12 +3,17 @@
 # ==========================================
 # ⚙️ CONFIGURATION
 # ==========================================
-# 1. Path to the SHARED Environment (Persistent in Home)
 SHARED_VENV="$HOME/DeepForg/venv_shared"
-
-# 2. Path to the ORIGINAL DATASET (We read directly from here)
-# This points to the folder on the cluster, so we don't need to copy it.
+# Points directly to the cluster storage (No disk copying = No space error)
 DIRECT_DATA_PATH="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
+SLURM_TMP_VAR="\$SLURM_TMPDIR" 
+
+# ==========================================
+# 🧹 STEP 0: FORCE CLEANUP
+# ==========================================
+# We delete the venv to ensure we aren't using a broken one.
+echo "🧹 Deleting old environment to ensure a clean start..."
+rm -rf "$SHARED_VENV"
 
 # ==========================================
 # 🛠️ STEP 1: SUBMIT SETUP JOB
@@ -29,16 +34,11 @@ export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 
 echo "🔧 Setting up Shared Environment at: $SHARED_VENV"
 
-# 1. Load Python
+# 1. Load Base Python (Sets LD_LIBRARY_PATH)
 source /home_expes/tools/python/python3915_0_gpu/bin/activate
 
-# 2. Create Venv (if not exists)
-if [ ! -d "$SHARED_VENV" ]; then
-    echo "   Creating new venv..."
-    python3 -m venv $SHARED_VENV
-else
-    echo "   Venv already exists. Updating..."
-fi
+# 2. Create Venv
+python3 -m venv $SHARED_VENV
 
 # 3. Install Libraries
 source $SHARED_VENV/bin/activate
@@ -49,16 +49,13 @@ pip install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch
 echo "✅ Environment Ready."
 EOT
 
-# Submit Setup Job and capture ID
+# Submit Setup Job
 SETUP_JOB_ID=$(sbatch --parsable setup_env.sh)
 echo "🚀 Submitted Setup Job (ID: $SETUP_JOB_ID)"
 
 # ==========================================
 # 🔗 STEP 2: SUBMIT CHAINED EXPERIMENTS
 # ==========================================
-# We chain the first job to the Setup Job, so training only starts
-# after the environment is fully built.
-
 LAST_JOB_ID=$SETUP_JOB_ID
 
 submit_direct_job() {
@@ -83,13 +80,15 @@ submit_direct_job() {
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 
-# 2. ACTIVATE SHARED VENV
+# 2. ACTIVATE ENV (THE FIX)
+# First: Load the base python to get the shared libraries (libpython3.9.so)
+source /home_expes/tools/python/python3915_0_gpu/bin/activate
+
+# Second: Activate our specific environment
 source $SHARED_VENV/bin/activate
 
-# 3. TRAIN (Direct Read)
-# We point --data_dir DIRECTLY to the source. No copying.
-echo "🔥 Training $NAME reading from Source..."
-
+# 3. TRAIN (Direct Read - Zero Disk Usage)
+echo "🔥 Training $NAME..."
 python3 train.py \\
   --epochs 100 \\
   --data_dir "$DIRECT_DATA_PATH" \\
@@ -111,15 +110,12 @@ echo "✅ Done."
 EOT
 
     # Submit with dependency
-    # 'afterany' ensures chain continues even if one job fails
     JOB_ID=$(sbatch --parsable --dependency=afterany:$LAST_JOB_ID run_${NAME}.sh)
     echo "🔗 Chained: $NAME (ID: $JOB_ID) -> waits for $LAST_JOB_ID"
-    
-    # Update tracker
     LAST_JOB_ID=$JOB_ID
 }
 
-echo "📋 Queueing 'Direct Read' jobs..."
+echo "📋 Queueing jobs..."
 
 # --- U-Net Experiments ---
 submit_direct_job "unet_baseline"       "unet"    "resnet34" "imagenet" "bce"
@@ -134,7 +130,7 @@ submit_direct_job "segformer_b0_scratch"  "segformer" "mit_b0" "None"     "bce"
 submit_direct_job "segformer_b0_dice"     "segformer" "mit_b0" "imagenet" "dice"
 
 echo "---------------------------------------------------"
-echo "🎉 All jobs submitted."
-echo "1. Setup Job runs first (installs libraries)."
-echo "2. Training runs sequentially reading DIRECTLY from source (No disk usage!)."
-echo "Check status with: squeue -u \$(whoami)"
+echo "🎉 Fixed script submitted."
+echo "1. Old Venv deleted."
+echo "2. Setup Job creating new Venv."
+echo "3. Training jobs queued (Fixed library path)."
