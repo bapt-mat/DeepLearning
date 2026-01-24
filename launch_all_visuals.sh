@@ -1,38 +1,37 @@
 #!/bin/bash
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:1
-#SBATCH --mem=32G
-#SBATCH --time=01:00:00
-#SBATCH --output=logs/viz_gen_%j.log
-#SBATCH --job-name=VizGen
+#SBATCH --mem=10G
+#SBATCH --time=00:30:00
+#SBATCH --output=logs/viz_safe_%j.log
+#SBATCH --job-name=VizSafe
 
 # 1. SETUP ENV
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
-if [ -z "$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="$SLURM_TMPDIR"; fi
 
-# Setup Python
-source /home_expes/tools/python/python3915_0_gpu/bin/activate
+# Define paths
+SHARED_VENV="$HOME/DeepForg/venv_shared"
+# POINT DIRECTLY TO NETWORK STORAGE (No Copying!)
+DIRECT_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# Try to reuse an existing venv to save time, or create a new one
-if [ -d "venv_segformer_b0_baseline" ]; then
-    source venv_segformer_b0_baseline/bin/activate
-elif [ -d "venv_unet_baseline" ]; then
-    source venv_unet_baseline/bin/activate
+# 2. ACTIVATE SHARED VENV & INSTALL MATPLOTLIB
+if [ -d "$SHARED_VENV" ]; then
+    echo "✅ Found Shared Venv. Activating..."
+    source /home_expes/tools/python/python3915_0_gpu/bin/activate
+    source $SHARED_VENV/bin/activate
+    
+    # INSTALL MATPLOTLIB (Fixes "No module named matplotlib")
+    echo "📦 Checking for matplotlib..."
+    pip install --no-cache-dir matplotlib
 else
-    # Fallback: Create temp venv
-    python3 -m venv $TMPDIR/venv
-    source $TMPDIR/venv/bin/activate
-    pip install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm --extra-index-url https://download.pytorch.org/whl/cu113
+    echo "❌ Error: Shared Venv not found at $SHARED_VENV"
+    echo "   Please run the setup script (00_setup_env.sh) first."
+    exit 1
 fi
 
-# 2. DATA TRANSFER
-SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
-LOCAL_DATA="$TMPDIR/dataset_viz"
-mkdir -p $LOCAL_DATA
-tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
-
-# 3. LIST OF ALL MODELS TO PROCESS
+# 3. LIST OF MODELS TO VISUALIZE
+# (Ensure these .pth files exist in your current folder)
 MODELS=(
     "unet_baseline"
     "unet_dice"
@@ -49,36 +48,32 @@ for MODEL in "${MODELS[@]}"; do
     if [ -f "${MODEL}.pth" ]; then
         echo "📸 Generating visuals for $MODEL..."
         
-        # --- SMART CONFIGURATION ---
-        # 1. Default U-Net settings
+        # Smart Architecture Detection
         ARCH="unet"
         ENCODER="resnet34"
         
-        # 2. Check for Deep Supervision
         if [[ "$MODEL" == *"deepsup"* ]]; then
             ARCH="deepsup"
-            ENCODER="resnet34" # Dummy value, ignored by deepsup model
         fi
         
-        # 3. Check for SegFormer
         if [[ "$MODEL" == *"segformer"* ]]; then
             ARCH="segformer"
-            ENCODER="mit_b0" # Default B0
-            
-            # Check for B2 Capacity model
+            ENCODER="mit_b0"
             if [[ "$MODEL" == *"b2"* ]]; then
                 ENCODER="mit_b2"
             fi
         fi
         
+        # RUN PYTHON SCRIPT (Reading directly from Source)
         python3 generate_visuals.py \
-            --data_dir $LOCAL_DATA \
-            --save_name $MODEL \
-            --arch $ARCH \
-            --encoder $ENCODER
+            --data_dir "$DIRECT_DATA" \
+            --save_name "$MODEL" \
+            --arch "$ARCH" \
+            --encoder "$ENCODER"
+            
     else
         echo "⚠️  Model ${MODEL}.pth not found. Skipping."
     fi
 done
 
-echo "✅ All visuals generated."
+echo "✅ All visuals generated in 'visuals/' folder."
