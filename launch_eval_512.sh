@@ -30,15 +30,7 @@ fi
 
 # 3. LIST MODELS
 MODELS=(
-    "unet_baseline"
-    "unet_dice"
-    "unet_scratch"
-    "unet_deepsup"
-    "segformer_b0_baseline"
-    "segformer_b0_dice"
-    "segformer_b0_scratch"
-    "segformer_b2_capacity"
-    "segformer_b2_aug"
+    "segformer_b2_512"
 )
 
 # 4. EVALUATION LOOP
@@ -61,7 +53,8 @@ for MODEL in "${MODELS[@]}"; do
             --data_dir "$DIRECT_DATA" \
             --save_name "$MODEL" \
             --arch "$ARCH" \
-            --encoder "$ENCODER"
+            --encoder "$ENCODER" \
+            --im_size 512
     else
         echo "⚠️  ${MODEL}.pth not found. Skipping."
     fi
