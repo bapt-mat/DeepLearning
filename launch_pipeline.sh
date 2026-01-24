@@ -1,47 +1,51 @@
 #!/bin/bash
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:1
-#SBATCH --mem=24G
+#SBATCH --mem=12G
 #SBATCH --time=01:00:00
-#SBATCH --output=logs/pipeline_%j.log
-#SBATCH --job-name=PipeEval
+#SBATCH --output=logs/pipeline_safe_%j.log
+#SBATCH --job-name=PipeSafe
 
 # 1. SETUP ENV
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
-if [ -z "$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="$SLURM_TMPDIR"; fi
 
-source /home_expes/tools/python/python3915_0_gpu/bin/activate
+SHARED_VENV="$HOME/DeepForg/venv_shared"
+# POINT DIRECTLY TO NETWORK STORAGE (Zero Disk Usage)
+DIRECT_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# Reuse your existing environment (fastest)
-if [ -d "venv_unet_baseline" ]; then
-    source venv_unet_baseline/bin/activate
+# 2. ACTIVATE SHARED VENV & INSTALL LIBS
+if [ -d "$SHARED_VENV" ]; then
+    echo "✅ Found Shared Venv. Activating..."
+    source /home_expes/tools/python/python3915_0_gpu/bin/activate
+    source $SHARED_VENV/bin/activate
+    
+    # INSTALL MISSING LIBRARIES (Fixes "No module named pandas/sklearn")
+    echo "📦 Checking for pandas & scikit-learn..."
+    pip install --no-cache-dir pandas scikit-learn
 else
-    # Fallback creation
-    python3 -m venv $TMPDIR/venv
-    source $TMPDIR/venv/bin/activate
-    pip install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm scikit-learn pandas --extra-index-url https://download.pytorch.org/whl/cu113
+    echo "❌ Error: Shared Venv not found. Run setup first."
+    exit 1
 fi
-
-# 2. DATA TRANSFER
-SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
-LOCAL_DATA="$TMPDIR/dataset_pipe"
-mkdir -p $LOCAL_DATA
-tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
 
 # 3. RUN PIPELINE
 echo "🔥 Running Two-Stage Pipeline Evaluation..."
 
-# CLASSIFIER = segformer_b2_capacity
-# SEGMENTER  = unet_baseline
+# CLASSIFIER = segformer_b2_capacity (The Gatekeeper)
+# SEGMENTER  = unet_baseline       (The Specialist)
 
-python3 evaluate_pipeline.py \
-    --data_dir $LOCAL_DATA \
-    --cls_model "segformer_b2_capacity" \
-    --cls_arch "segformer" \
-    --cls_enc "mit_b2" \
-    --seg_model "unet_baseline" \
-    --seg_arch "unet" \
-    --seg_enc "resnet34"
+if [ -f "segformer_b2_capacity.pth" ] && [ -f "unet_baseline.pth" ]; then
+    python3 evaluate_pipeline.py \
+        --data_dir "$DIRECT_DATA" \
+        --cls_model "segformer_b2_capacity" \
+        --cls_arch "segformer" \
+        --cls_enc "mit_b2" \
+        --seg_model "unet_baseline" \
+        --seg_arch "unet" \
+        --seg_enc "resnet34"
+else
+    echo "❌ Error: One or both model weights (.pth) are missing!"
+    echo "   Ensure 'segformer_b2_capacity.pth' and 'unet_baseline.pth' are in this folder."
+fi
 
 echo "✅ Pipeline evaluation finished."

@@ -9,50 +9,47 @@
 # 1. SETUP ENV
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
-if [ -z "$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="$SLURM_TMPDIR"; fi
 
-source /home_expes/tools/python/python3915_0_gpu/bin/activate
+SHARED_VENV="$HOME/DeepForg/venv_shared"
+# POINT DIRECTLY TO NETWORK STORAGE (Zero Disk Usage)
+DIRECT_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# Create Isolated Environment for Augmentation
-VENV_PATH="$TMPDIR/venv_unet_aug"
-python3 -m venv $VENV_PATH
-PYBIN="$VENV_PATH/bin/python3"
-PIP="$VENV_PATH/bin/pip"
+# 2. ACTIVATE SHARED VENV & INSTALL ALBUMENTATIONS
+if [ -d "$SHARED_VENV" ]; then
+    echo "✅ Found Shared Venv. Activating..."
+    source /home_expes/tools/python/python3915_0_gpu/bin/activate
+    source $SHARED_VENV/bin/activate
+    
+    # INSTALL ALBUMENTATIONS (Required for this job)
+    echo "📦 Checking for albumentations..."
+    pip install --no-cache-dir albumentations
+else
+    echo "❌ Error: Shared Venv not found. Run setup first."
+    exit 1
+fi
 
-# 2. INSTALL DEPENDENCIES + ALBUMENTATIONS
-echo "📦 Installing libraries..."
-$PIP install --no-cache-dir --upgrade pip
-# Note: Added 'albumentations' and 'scikit-learn'
-$PIP install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm albumentations scikit-learn pandas --extra-index-url https://download.pytorch.org/whl/cu113
-
-# 3. DATA TRANSFER
-SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
-LOCAL_DATA="$TMPDIR/dataset_aug" 
-echo "🚀 Unpacking data..."
-mkdir -p $LOCAL_DATA
-tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
-
-# 4. ENABLE AUGMENTATION
+# 3. ENABLE AUGMENTATION
+# This tells dataset.py to use the Albumentations transform
 export USE_AUGMENTATION="True"
 echo "🌪️  USE_AUGMENTATION is set to: $USE_AUGMENTATION"
 
-# 5. TRAIN
+# 4. TRAIN (Direct Read)
 NAME="unet_aug"
 echo "🔥 Training $NAME..."
 
-$PYBIN train.py \
+python3 train.py \
   --epochs 100 \
-  --data_dir $LOCAL_DATA \
+  --data_dir "$DIRECT_DATA" \
   --arch unet \
   --encoder resnet34 \
   --weights imagenet \
   --loss bce \
   --save_name $NAME
 
-# 6. EVALUATE
+# 5. EVALUATE
 echo "📊 Evaluating $NAME..."
-$PYBIN evaluate_full_metrics.py \
-  --data_dir $LOCAL_DATA \
+python3 evaluate_full_metrics.py \
+  --data_dir "$DIRECT_DATA" \
   --save_name $NAME \
   --arch unet \
   --encoder resnet34

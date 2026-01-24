@@ -1,33 +1,32 @@
 #!/bin/bash
 #SBATCH --partition=GPU
 #SBATCH --gres=gpu:1
-#SBATCH --mem=24G
-#SBATCH --time=02:00:00
-#SBATCH --output=logs/eval_all_%j.log
-#SBATCH --job-name=EvalAll
+#SBATCH --mem=12G
+#SBATCH --time=01:00:00
+#SBATCH --output=logs/eval_safe_%j.log
+#SBATCH --job-name=EvalSafe
 
 # 1. SETUP ENV
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
-if [ -z "$SLURM_TMPDIR" ]; then export TMPDIR="/tmp"; else export TMPDIR="$SLURM_TMPDIR"; fi
 
-source /home_expes/tools/python/python3915_0_gpu/bin/activate
+SHARED_VENV="$HOME/DeepForg/venv_shared"
+# POINT DIRECTLY TO NETWORK STORAGE (Zero Disk Usage)
+DIRECT_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# Reuse existing environment or create new one
-if [ -d "venv_unet_baseline" ]; then
-    source venv_unet_baseline/bin/activate
+# 2. ACTIVATE SHARED VENV & INSTALL PANDAS
+if [ -d "$SHARED_VENV" ]; then
+    echo "✅ Found Shared Venv. Activating..."
+    source /home_expes/tools/python/python3915_0_gpu/bin/activate
+    source $SHARED_VENV/bin/activate
+    
+    # INSTALL MISSING LIBRARIES (Fixes "No module named pandas")
+    echo "📦 Checking for pandas & scikit-learn..."
+    pip install --no-cache-dir pandas scikit-learn
 else
-    python3 -m venv $TMPDIR/venv
-    source $TMPDIR/venv/bin/activate
-    # IMPORTANT: Install scikit-learn for metrics
-    pip install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm scikit-learn pandas --extra-index-url https://download.pytorch.org/whl/cu113
+    echo "❌ Error: Shared Venv not found. Run setup first."
+    exit 1
 fi
-
-# 2. DATA TRANSFER
-SOURCE_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
-LOCAL_DATA="$TMPDIR/dataset_eval"
-mkdir -p $LOCAL_DATA
-tar cf - -C $SOURCE_DATA . | tar xf - -C $LOCAL_DATA
 
 # 3. LIST MODELS
 MODELS=(
@@ -56,13 +55,14 @@ for MODEL in "${MODELS[@]}"; do
             if [[ "$MODEL" == *"b2"* ]]; then ENCODER="mit_b2"; fi
         fi
         
+        # RUN PYTHON SCRIPT (Reading directly from Source)
         python3 evaluate_full_metrics.py \
-            --data_dir $LOCAL_DATA \
-            --save_name $MODEL \
-            --arch $ARCH \
-            --encoder $ENCODER
+            --data_dir "$DIRECT_DATA" \
+            --save_name "$MODEL" \
+            --arch "$ARCH" \
+            --encoder "$ENCODER"
     else
-        echo "⚠️  ${MODEL}.pth not found."
+        echo "⚠️  ${MODEL}.pth not found. Skipping."
     fi
 done
 
