@@ -113,16 +113,16 @@ EOT
 echo "📋 Queueing Parallel Jobs..."
 
 # Group A: U-Net
-submit_parallel_job "unet_baseline" "unet" "resnet34" "imagenet" "bce"
-submit_parallel_job "unet_scratch" "unet" "resnet34" "None" "bce"
-submit_parallel_job "unet_dice" "unet" "resnet34" "imagenet" "dice"
-submit_parallel_job "unet_deepsup" "deepsup" "resnet34" "imagenet" "bce"
+submit_parallel_job "unet_baseline_100" "unet" "resnet34" "imagenet" "bce"
+submit_parallel_job "unet_scratch_100" "unet" "resnet34" "None" "bce"
+submit_parallel_job "unet_dice_100" "unet" "resnet34" "imagenet" "dice"
+submit_parallel_job "unet_deepsup_100" "deepsup" "resnet34" "imagenet" "bce"
 
 # Group B: SegFormer
-submit_parallel_job "segformer_b0_baseline" "segformer" "mit_b0" "imagenet" "bce"
-submit_parallel_job "segformer_b2_capacity" "segformer" "mit_b2" "imagenet" "bce"
-submit_parallel_job "segformer_b0_scratch" "segformer" "mit_b0" "None" "bce"
-submit_parallel_job "segformer_b0_dice" "segformer" "mit_b0" "imagenet" "dice"
+submit_parallel_job "segformer_b0_baseline_100" "segformer" "mit_b0" "imagenet" "bce"
+submit_parallel_job "segformer_b2_capacity_100" "segformer" "mit_b2" "imagenet" "bce"
+submit_parallel_job "segformer_b0_scratch_100" "segformer" "mit_b0" "None" "bce"
+submit_parallel_job "segformer_b0_dice_100" "segformer" "mit_b0" "imagenet" "dice"
 
 echo "----------------------------------------"
 echo "🎉 All jobs submitted in PARALLEL mode."
