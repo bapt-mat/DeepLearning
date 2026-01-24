@@ -1,56 +1,23 @@
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 import argparse
 import os
-import cv2
+import h5py
 from dataset import ForgeryDataset
 from model import FlexibleModel
-
-def save_visual(img_tensor, mask_tensor, pred_tensor, save_path, title):
-    """Helper to save a side-by-side plot"""
-    # 1. Un-normalize image for display
-    img = img_tensor.permute(1, 2, 0).cpu().numpy()
-    
-    # 2. Prepare masks
-    gt = mask_tensor.squeeze().cpu().numpy()
-    pred = torch.sigmoid(pred_tensor).squeeze().cpu().numpy()
-    
-    # 3. Plot
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-    
-    ax[0].imshow(img)
-    ax[0].set_title("Input Image")
-    ax[0].axis('off')
-    
-    ax[1].imshow(gt, cmap='gray')
-    ax[1].set_title("Ground Truth")
-    ax[1].axis('off')
-    
-    ax[2].imshow(pred, cmap='jet', vmin=0, vmax=1)
-    ax[2].set_title(f"Prediction (Prob Map)\n{title}")
-    ax[2].axis('off')
-    
-    plt.tight_layout()
-    plt.savefig(save_path)
-    plt.close()
 
 def run_visuals():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
-    parser.add_argument('--save_name', type=str, required=True) # e.g. unet_baseline
+    parser.add_argument('--save_name', type=str, required=True)
     parser.add_argument('--arch', type=str, default='unet')
     parser.add_argument('--encoder', type=str, default='resnet34')
     args = parser.parse_args()
 
-    # Create output folder
-    os.makedirs("visuals", exist_ok=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    print(f"📸 Generating visuals for: {args.save_name}")
+    print(f"💾 Generating H5 visuals for: {args.save_name}")
 
     # 1. Load Model
-    # Handle 'deepsup' or other variants
     model = FlexibleModel(arch=args.arch, encoder=args.encoder, weights=None, n_classes=1).to(device)
     
     weights_path = f"{args.save_name}.pth"
@@ -60,9 +27,7 @@ def run_visuals():
 
     try:
         model.load_state_dict(torch.load(weights_path, map_location=device))
-    except Exception as e:
-        print(f"⚠️ Warning: Direct load failed, trying loose load... {e}")
-        # Sometimes models saved with DataParallel need 'module.' stripped, or strict=False
+    except:
         model.load_state_dict(torch.load(weights_path, map_location=device), strict=False)
         
     model.eval()
@@ -70,42 +35,54 @@ def run_visuals():
     # 2. Load Dataset
     val_ds = ForgeryDataset(args.data_dir, phase='val')
     
-    # --- THE FIX: INTELLIGENT SCANNING ---
-    # Instead of iterating 0..N, we look at the dataset metadata directly
-    # val_ds.dataset is a list of (path, label, mask_path)
-    
-    # Find indices of FORGED images (label == 1)
+    # 3. Find Forged Samples (Intelligent Scanning)
+    print("🔍 Scanning for forged validation samples...")
     forged_indices = [i for i, x in enumerate(val_ds.dataset) if x[1] == 1]
     
     if len(forged_indices) == 0:
         print("❌ Error: No forged images found in validation set.")
         return
 
-    print(f"✅ Found {len(forged_indices)} forged samples in validation set.")
-    
-    # Select 3 random forged images
+    # Select 10 random samples to save
     np.random.seed(42)
-    selected_indices = np.random.choice(forged_indices, 3, replace=False)
+    count = min(len(forged_indices), 10)
+    selected_indices = np.random.choice(forged_indices, count, replace=False)
+    
+    # Lists to store data
+    store_imgs = []
+    store_masks = []
+    store_preds = []
 
-    # 3. Generate Predictions
+    # 4. Inference Loop
+    print(f"⚡ Processing {count} samples...")
     with torch.no_grad():
-        for i, idx in enumerate(selected_indices):
-            img, mask = val_ds[idx]
+        for idx in selected_indices:
+            img, mask = val_ds[idx] # img is (3, H, W) normalized 0-1
+            
             input_t = img.unsqueeze(0).to(device)
-            
-            # Predict
             out = model(input_t)
-            if isinstance(out, list): out = out[0] # Handle deep supervision
+            if isinstance(out, list): out = out[0]
             
-            # Calculate Dice for title
-            pred_bin = (torch.sigmoid(out) > 0.5).float()
-            intersection = (pred_bin * mask.to(device)).sum()
-            dice = (2. * intersection) / (pred_bin.sum() + mask.to(device).sum() + 1e-6)
+            # Probability Map (0-1)
+            prob_map = torch.sigmoid(out).squeeze().cpu().numpy()
             
-            # Save
-            out_file = f"visuals/{args.save_name}_sample_{i}.png"
-            save_visual(img, mask, out, out_file, title=f"Dice: {dice.item():.4f}")
-            print(f"   👉 Saved {out_file}")
+            # Prepare for storage
+            # Convert image back to 0-255 uint8 for space efficiency
+            img_numpy = (img.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+            mask_numpy = mask.squeeze().numpy().astype(np.uint8)
+            
+            store_imgs.append(img_numpy)
+            store_masks.append(mask_numpy)
+            store_preds.append(prob_map)
+
+    # 5. Save to H5
+    out_file = f"visuals_{args.save_name}.h5"
+    with h5py.File(out_file, 'w') as f:
+        f.create_dataset("images", data=np.array(store_imgs))
+        f.create_dataset("masks", data=np.array(store_masks))
+        f.create_dataset("predictions", data=np.array(store_preds))
+        
+    print(f"✅ Saved {out_file} (Size: {os.path.getsize(out_file)/1024/1024:.2f} MB)")
 
 if __name__ == "__main__":
     run_visuals()
