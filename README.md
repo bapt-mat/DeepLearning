@@ -55,7 +55,7 @@ pip install albumentations
 ```
 .
 ├── train.py                      # Main training script
-├── model.py                      # Model architectures (UNet, SegFormer, DeepSupResUNet)
+├── model.py                      # Model architectures (UNet, SegFormer, Deep Supervision ResUNet)
 ├── dataset.py                    # Dataset loading and augmentation
 ├── evaluate_official.py          # Kaggle-format evaluation
 ├── evaluate_full_metrics.py      # Comprehensive metrics evaluation
@@ -278,7 +278,7 @@ Visualization results include:
 If you use this code in your research, please cite:
 
 ```bibtex
-@misc{deeplearning-forgery,
+@software{deeplearning-forgery,
   author = {Baptiste Mathon},
   title = {Image Forgery Detection using Deep Learning},
   year = {2024},
