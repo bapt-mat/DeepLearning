@@ -90,7 +90,7 @@ source $SHARED_VENV/bin/activate
 # 3. TRAIN (Direct Read - Zero Disk Usage)
 echo "🔥 Training $NAME..."
 python3 train.py \\
-  --epochs 100 \\
+  --epochs 30 \\
   --data_dir "$DIRECT_DATA_PATH" \\
   --arch $ARCH \\
   --encoder $ENCODER \\
