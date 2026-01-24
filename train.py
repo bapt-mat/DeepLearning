@@ -11,7 +11,6 @@ from model import FlexibleModel
 def calculate_metrics(pred, target):
     pred = (torch.sigmoid(pred) > 0.5).float()
     tp, fp, fn = (pred * target).sum(), (pred * (1-target)).sum(), ((1-pred) * target).sum()
-    # FIXED: Added .item() to ensure it returns a Python float, not a Tensor
     score = (2*tp + 1e-6)/(2*tp + fp + fn + 1e-6)
     return {"Dice": score.item()}
 
@@ -33,14 +32,28 @@ def train():
     parser.add_argument('--weights', type=str, default='imagenet')
     parser.add_argument('--loss', type=str, default='bce')
     parser.add_argument('--save_name', type=str, default='model')
+    
+    # NEW ARGUMENTS
+    parser.add_argument('--im_size', type=int, default=256, help="Image resolution (e.g. 256, 512)")
+    parser.add_argument('--batch_size', type=int, default=16, help="Batch size (lower this for 512px)")
+    
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"🚀 Config: {args.arch} | {args.encoder} | {args.weights} | {args.loss}")
+    print(f"🚀 Config: {args.arch} | {args.encoder} | {args.im_size}x{args.im_size} | Batch: {args.batch_size}")
 
-    # Data
-    train_loader = DataLoader(ForgeryDataset(args.data_dir, phase='train'), batch_size=16, shuffle=True, num_workers=2)
-    val_loader = DataLoader(ForgeryDataset(args.data_dir, phase='val'), batch_size=16, shuffle=False, num_workers=2)
+    # Pass im_size as a tuple (H, W)
+    size_tuple = (args.im_size, args.im_size)
+
+    # Data Loaders with NEW params
+    train_loader = DataLoader(
+        ForgeryDataset(args.data_dir, phase='train', im_size=size_tuple), 
+        batch_size=args.batch_size, shuffle=True, num_workers=2
+    )
+    val_loader = DataLoader(
+        ForgeryDataset(args.data_dir, phase='val', im_size=size_tuple), 
+        batch_size=args.batch_size, shuffle=False, num_workers=2
+    )
     
     # Model
     weights_val = None if args.weights == 'None' else args.weights
@@ -61,6 +74,7 @@ def train():
             if isinstance(outputs, list):
                 loss = 0
                 for i, out in enumerate(outputs):
+                    # Interpolate target to match deep supervision outputs
                     target_resized = torch.nn.functional.interpolate(masks, size=out.shape[2:], mode='nearest')
                     loss += (1.0 if i == 0 else 0.5) * criterion(out, target_resized)
             else:
@@ -80,7 +94,6 @@ def train():
                 if isinstance(outputs, list): outputs = outputs[0]
                 val_dice += calculate_metrics(outputs, masks)["Dice"]
 
-        # Ensure these are floats before saving
         avg_loss = float(train_loss / len(train_loader))
         avg_dice = float(val_dice / len(val_loader))
         
@@ -89,7 +102,6 @@ def train():
         
         print(f"Epoch {epoch+1} | Loss: {avg_loss:.4f} | Dice: {avg_dice:.4f}")
 
-        # Save History
         with h5py.File(f"results_{args.save_name}.h5", "w") as f:
             f.create_dataset("train_loss", data=history["train_loss"])
             f.create_dataset("val_dice", data=history["val_dice"])

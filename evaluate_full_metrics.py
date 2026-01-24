@@ -16,7 +16,9 @@ def mask_to_kaggle_format(binary_mask):
     instances = []
     for i in range(1, num_features + 1):
         instance = (labeled_mask == i).astype(np.uint8)
-        if instance.sum() > 10: instances.append(instance)
+        # Filter tiny instances (noise)
+        if instance.sum() > 10: 
+            instances.append(instance)
     return "authentic" if not instances else kaggle_metric.rle_encode(instances)
 
 # --- HELPER: PIXEL METRICS ---
@@ -36,10 +38,12 @@ def evaluate():
     parser.add_argument('--save_name', type=str, required=True)
     parser.add_argument('--arch', type=str, default='unet')
     parser.add_argument('--encoder', type=str, default='resnet34')
+    # NEW ARGUMENT: Image Size
+    parser.add_argument('--im_size', type=int, default=256, help="Resolution used for training (e.g., 256 or 512)")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"📊 Evaluating full metrics for: {args.save_name}")
+    print(f"📊 Evaluating full metrics for: {args.save_name} at {args.im_size}x{args.im_size}")
     
     # 1. Load Model
     model = FlexibleModel(arch=args.arch, encoder=args.encoder, weights=None).to(device)
@@ -50,8 +54,8 @@ def evaluate():
         return
     model.eval()
 
-    # 2. Dataset
-    val_ds = ForgeryDataset(args.data_dir, phase='val')
+    # 2. Dataset (Pass the size tuple)
+    val_ds = ForgeryDataset(args.data_dir, phase='val', im_size=(args.im_size, args.im_size))
     
     # 3. Storage
     # Classification (Image Level)
@@ -127,6 +131,7 @@ def evaluate():
     print(f"   🔹 Classification Acc:   {acc:.4f}")
     print(f"   🔹 Classification F1:    {f1_cls:.4f}")
     print(f"   🔹 Segmentation Dice:    {mean_dice:.4f}")
+    print(f"   🔹 Segmentation IoU:     {mean_iou:.4f}")
     print("-" * 40)
     
     # Save to CSV line

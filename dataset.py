@@ -15,9 +15,10 @@ except ImportError:
     HAS_ALBUMENTATIONS = False
 
 class ForgeryDataset(Dataset):
-    def __init__(self, data_root, phase='train'):
+    def __init__(self, data_root, phase='train', im_size=(256, 256)):
         self.data_root = Path(data_root)
         self.phase = phase
+        self.im_size = im_size
         self.images = []
         
         # Check environment variable for Augmentation
@@ -54,7 +55,7 @@ class ForgeryDataset(Dataset):
             
             print("🌪️  DATA AUGMENTATION ENABLED (Flips, Rotate, Shift)!")
             self.transform = A.Compose([
-                A.Resize(256, 256), # Matching your original 256 size
+                A.Resize(self.im_size[0], self.im_size[1]), # Matching your original 256 size
                 A.HorizontalFlip(p=0.5),
                 A.VerticalFlip(p=0.5),
                 A.RandomRotate90(p=0.5),
@@ -87,9 +88,8 @@ class ForgeryDataset(Dataset):
             t_img = augmented['image']
             t_mask = augmented['mask'].float().unsqueeze(0)
         else:
-            # USE YOUR ORIGINAL CODE (Backward Compatible)
-            img = cv2.resize(img, (256, 256))
-            mask = cv2.resize(mask, (256, 256), interpolation=cv2.INTER_NEAREST)
+            img = cv2.resize(img, self.im_size)
+            mask = cv2.resize(mask, self.im_size, interpolation=cv2.INTER_NEAREST)
             
             t_img = torch.from_numpy(img).float().permute(2, 0, 1) / 255.0
             t_mask = torch.from_numpy(mask).float().unsqueeze(0)
