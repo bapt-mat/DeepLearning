@@ -38,7 +38,7 @@ NAME="segformer_b2_aug"
 echo "🔥 Training $NAME (SegFormer B2 + Augmentation)..."
 
 python3 train.py \
-  --epochs 100 \
+  --epochs 30 \
   --data_dir "$DIRECT_DATA" \
   --arch segformer \
   --encoder mit_b2 \
