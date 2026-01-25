@@ -15,13 +15,13 @@ def run_balanced_gen():
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"⚖️  Generating BALANCED visuals (5 Auth / 5 Forged) for: {args.save_name}")
+    print(f"Generating balanced visuals (5 Auth / 5 Forged) for: {args.save_name}")
 
-    # 1. Load Model
+    #loadiing model
     model = FlexibleModel(arch=args.arch, encoder=args.encoder, weights=None, n_classes=1).to(device)
     weights_path = f"{args.save_name}.pth"
     if not os.path.exists(weights_path):
-        print(f"❌ Error: Weights file '{weights_path}' not found.")
+        print(f"Error: Weights file '{weights_path}' not found.")
         return
     try:
         model.load_state_dict(torch.load(weights_path, map_location=device))
@@ -29,11 +29,11 @@ def run_balanced_gen():
         model.load_state_dict(torch.load(weights_path, map_location=device), strict=False)
     model.eval()
 
-    # 2. Load Dataset
+    # load dataset
     val_ds = ForgeryDataset(args.data_dir, phase='val')
     
-    # 3. Intelligent Selection (5 Authentic + 5 Forged)
-    print("🔍 Scanning dataset for balanced samples...")
+    # Intelligent selection (5 Authentic + 5 Forged)
+    print("Scanning dataset for balanced samples")
     
     # Val dataset is a list of tuples: (path, label, mask_path)
     # label 0 = Authentic, 1 = Forged
@@ -41,7 +41,7 @@ def run_balanced_gen():
     forg_indices = [i for i, x in enumerate(val_ds.dataset) if x[1] == 1]
     
     if len(auth_indices) < 5 or len(forg_indices) < 5:
-        print("❌ Error: Not enough samples in validation set.")
+        print("Error: Not enough samples in validation set.")
         return
 
     np.random.seed(42)
@@ -53,8 +53,8 @@ def run_balanced_gen():
     
     store_imgs, store_masks, store_preds = [], [], []
 
-    # 4. Inference Loop
-    print(f"⚡ Processing 10 balanced samples...")
+    # inference loop
+    print(f"Processing 10 balanced samples...")
     with torch.no_grad():
         for idx in selected_indices:
             img, mask = val_ds[idx] 
@@ -65,7 +65,7 @@ def run_balanced_gen():
             
             prob_map = torch.sigmoid(out).squeeze().cpu().numpy()
             
-            # Store
+            # store
             img_numpy = (img.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
             mask_numpy = mask.squeeze().numpy().astype(np.uint8)
             
@@ -73,14 +73,14 @@ def run_balanced_gen():
             store_masks.append(mask_numpy)
             store_preds.append(prob_map)
 
-    # 5. Save
+    # save to H5
     out_file = f"balanced_visuals_{args.save_name}.h5"
     with h5py.File(out_file, 'w') as f:
         f.create_dataset("images", data=np.array(store_imgs))
         f.create_dataset("masks", data=np.array(store_masks))
         f.create_dataset("predictions", data=np.array(store_preds))
         
-    print(f"✅ Saved {out_file}")
+    print(f"Saved {out_file}")
 
 if __name__ == "__main__":
     run_balanced_gen()

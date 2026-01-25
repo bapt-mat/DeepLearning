@@ -3,9 +3,8 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 
-# --- CONFIGURATION: Grouping your files for the report ---
 EXPERIMENTS = {
-    # STUDY 1: Architecture Comparison (U-Net vs SegFormer)
+    # study 1: Architecture Comparison (U-Net vs SegFormer)
     "Architecture": {
         "files": [
             "results_unet_baseline.h5",
@@ -16,7 +15,7 @@ EXPERIMENTS = {
         "title": "Ablation: Model Architecture"
     },
     
-    # STUDY 2: Loss Function (BCE vs Dice)
+    # study 2: Loss Function (BCE vs Dice)
     "Loss Function": {
         "files": [
             "results_unet_baseline.h5",
@@ -28,7 +27,7 @@ EXPERIMENTS = {
         "title": "Ablation: Loss Function Impact"
     },
 
-    # STUDY 3: Pre-training vs Scratch
+    # study 3: Pre-training vs Scratch
     "Pre-training": {
         "files": [
             "results_unet_baseline.h5",
@@ -40,7 +39,7 @@ EXPERIMENTS = {
         "title": "Ablation: Impact of Pre-training"
     },
 
-    # STUDY 4: Data Augmentation
+    # study 4: Data Augmentation
     "Augmentation": {
         "files": [
             "results_unet_baseline.h5",
@@ -52,9 +51,8 @@ EXPERIMENTS = {
 }
 
 def load_history(filename):
-    """Robust loader that finds the correct keys (loss vs Train_Loss)."""
     if not os.path.exists(filename):
-        print(f"⚠️ Warning: {filename} not found. Skipping.")
+        print(f"Warning: {filename} not found")
         return None
     
     data = {}
@@ -63,26 +61,23 @@ def load_history(filename):
             for k in f.keys():
                 data[k] = np.array(f[k])
     except Exception as e:
-        print(f"❌ Error reading {filename}: {e}")
+        print(f"Error reading {filename}: {e}")
         return None
     return data
 
 def get_key(history, candidates):
-    """Finds the first matching key from a list of candidates."""
     for key in candidates:
-        # Check exact match
         if key in history: return key
-        # Check case-insensitive
         for h_key in history.keys():
             if h_key.lower() == key.lower(): return h_key
     return None
 
 def plot_ablation(experiment_name, config):
-    print(f"📊 Plotting {experiment_name}...")
+    print(f"Plotting {experiment_name}...")
     files = config["files"]
     labels = config["labels"]
     
-    # Create 2 subplots: Training Loss and Validation Metric
+    # Create 2 subplots: training loss and validation metric
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     has_data = False
     
@@ -90,22 +85,21 @@ def plot_ablation(experiment_name, config):
         history = load_history(f_name)
         if history is None: continue
         
-        # 1. FIND KEYS
+        # find keys
         loss_key = get_key(history, ['loss', 'train_loss', 'Train_Loss', 'bce_loss'])
-        # Try finding Validation Dice first, then Loss
         val_key = get_key(history, ['val_dice', 'val_score', 'val_iou', 'val_loss'])
         
         if loss_key is None:
-            print(f"   ⚠️ Skipping {f_name}: No loss key found.")
+            print(f"Skipping {f_name}: No loss key found.")
             continue
             
         has_data = True
         epochs = range(1, len(history[loss_key]) + 1)
         
-        # 2. PLOT TRAINING LOSS
+        # training loss plot
         ax1.plot(epochs, history[loss_key], label=label, linewidth=2)
         
-        # 3. PLOT VALIDATION METRIC
+        # validation plot
         if val_key:
             ax2.plot(epochs, history[val_key], label=f"{label}", linewidth=2, linestyle='--')
             ylabel = "Validation Score (Dice)" if 'dice' in val_key.lower() else "Validation Loss"
@@ -116,7 +110,6 @@ def plot_ablation(experiment_name, config):
         plt.close()
         return
 
-    # Styling
     ax1.set_title(f"{config['title']} - Training Loss")
     ax1.set_xlabel("Epochs")
     ax1.set_ylabel("Loss (Lower is better)")
@@ -125,7 +118,7 @@ def plot_ablation(experiment_name, config):
 
     ax2.set_title(f"{config['title']} - Validation Performance")
     ax2.set_xlabel("Epochs")
-    ax2.set_ylabel(ylabel) # Dynamic label based on what was found
+    ax2.set_ylabel(ylabel)
     ax2.legend()
     ax2.grid(True, linestyle='--', alpha=0.6)
 
@@ -134,7 +127,7 @@ def plot_ablation(experiment_name, config):
     # Save
     safe_name = experiment_name.replace(" ", "_").lower()
     plt.savefig(f"plot_{safe_name}.png", dpi=300)
-    print(f"✅ Saved plot_{safe_name}.png")
+    print(f"Saved plot_{safe_name}.png")
 
 if __name__ == "__main__":
     for name, config in EXPERIMENTS.items():

@@ -7,14 +7,14 @@ import numpy as np
 from dataset import ForgeryDataset
 from model import FlexibleModel
 
-# --- METRICS ---
+# --- METRICS 
 def calculate_metrics(pred, target):
     pred = (torch.sigmoid(pred) > 0.5).float()
     tp, fp, fn = (pred * target).sum(), (pred * (1-target)).sum(), ((1-pred) * target).sum()
     score = (2*tp + 1e-6)/(2*tp + fp + fn + 1e-6)
     return {"Dice": score.item()}
 
-# --- DICE LOSS ---
+# --- DICE Loss
 class DiceLoss(torch.nn.Module):
     def __init__(self): super().__init__()
     def forward(self, inputs, targets, smooth=1):
@@ -32,8 +32,6 @@ def train():
     parser.add_argument('--weights', type=str, default='imagenet')
     parser.add_argument('--loss', type=str, default='bce')
     parser.add_argument('--save_name', type=str, default='model')
-    
-    # NEW ARGUMENTS
     parser.add_argument('--im_size', type=int, default=256, help="Image resolution (e.g. 256, 512)")
     parser.add_argument('--batch_size', type=int, default=16, help="Batch size (lower this for 512px)")
     
@@ -42,10 +40,8 @@ def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"🚀 Config: {args.arch} | {args.encoder} | {args.im_size}x{args.im_size} | Batch: {args.batch_size}")
 
-    # Pass im_size as a tuple (H, W)
     size_tuple = (args.im_size, args.im_size)
 
-    # Data Loaders with NEW params
     train_loader = DataLoader(
         ForgeryDataset(args.data_dir, phase='train', im_size=size_tuple), 
         batch_size=args.batch_size, shuffle=True, num_workers=2
@@ -74,7 +70,6 @@ def train():
             if isinstance(outputs, list):
                 loss = 0
                 for i, out in enumerate(outputs):
-                    # Interpolate target to match deep supervision outputs
                     target_resized = torch.nn.functional.interpolate(masks, size=out.shape[2:], mode='nearest')
                     loss += (1.0 if i == 0 else 0.5) * criterion(out, target_resized)
             else:

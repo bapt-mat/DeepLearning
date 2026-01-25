@@ -10,14 +10,10 @@ from dataset import ForgeryDataset
 from model import FlexibleModel
 import kaggle_metric
 
-# --- CONFIGURATION ---
 FIXED_PROB_THRESH = 0.50
 MIN_AREAS = [0, 5, 10, 25, 50, 75, 100, 200]
 
 def filter_and_encode(binary_mask, min_area):
-    """
-    Labels connected components and removes those smaller than min_area.
-    """
     labeled_mask, num_features = label(binary_mask)
     instances = []
     for k in range(1, num_features + 1):
@@ -37,10 +33,10 @@ def run_study():
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"📊 Starting Minimum Area Ablation on {args.model_path}")
-    print(f"   Fixed Probability Threshold: {FIXED_PROB_THRESH}")
+    print(f"Starting minimum area ablation on {args.model_path}")
+    print(f"Fixed probability threshold: {FIXED_PROB_THRESH}")
     
-    # 1. Load Model
+    # Load model
     model = FlexibleModel(arch=args.arch, encoder=args.encoder, weights=None).to(device)
     try:
         model.load_state_dict(torch.load(args.model_path, map_location=device))
@@ -48,11 +44,11 @@ def run_study():
         model.load_state_dict(torch.load(args.model_path, map_location=device), strict=False)
     model.eval()
     
-    # 2. Load Data
+    #load dataset
     val_ds = ForgeryDataset(args.data_dir, phase='val', im_size=(args.im_size, args.im_size))
     
-    # 3. Pre-calculate Predictions & Build Ground Truth
-    print("⚡ Generating base predictions...")
+    # precalculate predictions
+    print("Generating base predictions...")
     ground_truth = []
     binary_predictions = [] 
     
@@ -60,10 +56,7 @@ def run_study():
         for i in tqdm(range(len(val_ds))):
             img, mask = val_ds[i]
             
-            # --- FIX IS HERE ---
-            # 1. Get shape as a list of integers: [256, 256]
             shape_list = list(mask.squeeze().shape)
-            # 2. Convert to string so json.loads() in the metric doesn't crash: "[256, 256]"
             shape_str = str(shape_list)
             
             # GT Encoding
@@ -73,7 +66,7 @@ def run_study():
             ground_truth.append({
                 'row_id': i, 
                 'annotation': gt_rle,
-                'shape': shape_str  # <--- Passing String instead of Size object
+                'shape': shape_str
             })
             
             # Prediction
@@ -88,8 +81,8 @@ def run_study():
     sol_df = pd.DataFrame(ground_truth)
     scores = []
 
-    # 4. Test Different Areas
-    print("🔄 Testing Minimum Area thresholds...")
+    # Evaluate for each min area
+    print("Testing Minimum Area thresholds...")
     for min_area in MIN_AREAS:
         submission = []
         for i, pred_bin in enumerate(binary_predictions):
@@ -101,14 +94,14 @@ def run_study():
         try:
             score = kaggle_metric.score(sol_df, sub_df, 'row_id')
             scores.append(score)
-            print(f"   Min Area > {min_area} px: oF1 = {score:.4f}")
+            print(f"Min Area > {min_area} px: oF1 = {score:.4f}")
         except Exception as e:
-            print(f"   ❌ Metric Error at area {min_area}: {e}")
+            print(f"Metric Error at area {min_area}: {e}")
             import traceback
             traceback.print_exc()
             scores.append(0)
 
-    # 5. Plot
+    # plotting
     plt.figure(figsize=(10, 6))
     plt.plot(MIN_AREAS, scores, marker='o', linestyle='-', color='purple', linewidth=2)
     plt.title(f"Ablation: Minimum Instance Size (Prob Thresh={FIXED_PROB_THRESH})")
@@ -123,7 +116,7 @@ def run_study():
         plt.legend()
     
     plt.savefig("study_min_area.png")
-    print("✅ Plot saved to study_min_area.png")
+    print("Plot saved to study_min_area.png")
 
 if __name__ == "__main__":
     run_study()

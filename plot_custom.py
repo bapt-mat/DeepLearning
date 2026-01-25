@@ -7,9 +7,8 @@ import argparse
 # --- HELPER FUNCTIONS ---
 
 def load_history(filename):
-    """Robust loader that reads all keys from the H5 file."""
     if not os.path.exists(filename):
-        print(f"⚠️  Warning: '{filename}' not found. Skipping.")
+        print(f"Warning: '{filename}' not found. Skipping.")
         return None
     
     data = {}
@@ -18,25 +17,22 @@ def load_history(filename):
             for k in f.keys():
                 data[k] = np.array(f[k])
     except Exception as e:
-        print(f"❌ Error reading {filename}: {e}")
+        print(f"Error reading {filename}: {e}")
         return None
     return data
 
 def get_key(history, candidates):
-    """Finds the first matching key from a list of candidates (case-insensitive)."""
     for key in candidates:
         if key in history: return key
         for h_key in history.keys():
             if h_key.lower() == key.lower(): return h_key
     return None
 
-# --- MAIN PLOTTING LOGIC ---
 
 def run_plot(files, labels, title, output_file, mode):
-    print(f"📊 Initializing Plot: {title}")
-    print(f"   Mode: {mode}")
+    print(f"Initializing Plot: {title}")
+    print(f"Mode: {mode}")
     
-    # 1. Determine Layout based on mode
     if mode == 'both':
         fig, axes = plt.subplots(1, 2, figsize=(16, 6))
         ax_loss, ax_val = axes[0], axes[1]
@@ -47,17 +43,15 @@ def run_plot(files, labels, title, output_file, mode):
 
     has_data = False
     
-    # If labels aren't provided or don't match file count, use filenames
     if not labels or len(labels) != len(files):
-        if labels: print("⚠️  Label count mismatch. Using filenames as labels.")
+        if labels: print("Label count mismatch. Using filenames as labels.")
         labels = [os.path.basename(f).replace('.h5', '').replace('results_', '') for f in files]
 
-    # 2. Iterate Files
+    # Iterate files
     for f_name, label in zip(files, labels):
         history = load_history(f_name)
         if history is None: continue
         
-        # Identify Keys
         loss_key = get_key(history, ['loss', 'train_loss', 'bce_loss'])
         val_key = get_key(history, ['val_dice', 'val_score', 'val_iou', 'val_loss', 'dice'])
         
@@ -66,29 +60,26 @@ def run_plot(files, labels, title, output_file, mode):
         elif val_key: epochs = range(1, len(history[val_key]) + 1)
         
         if not epochs:
-            print(f"   ⚠️  Skipping {f_name}: No recognizable data found.")
+            print(f"Skipping {f_name}: No recognizable data found.")
             continue
 
         has_data = True
         
-        # Plot Training Loss
         if ax_loss and loss_key:
             ax_loss.plot(epochs, history[loss_key], label=label, linewidth=2)
         elif ax_loss:
-            print(f"   ⚠️  {f_name}: 'loss' key missing.")
+            print(f"{f_name}: 'loss' key missing.")
 
-        # Plot Validation Metric
         if ax_val and val_key:
             ax_val.plot(epochs, history[val_key], label=label, linewidth=2, linestyle='--')
         elif ax_val:
-            print(f"   ⚠️  {f_name}: Validation key missing.")
+            print(f"{f_name}: Validation key missing.")
 
     if not has_data:
-        print("❌ No valid data plotted. Exiting.")
+        print("No valid data plotted, ciao")
         plt.close()
         return
 
-    # 3. Styling
     if ax_loss:
         ax_loss.set_title(f"{title} - Training Loss")
         ax_loss.set_xlabel("Epochs")
@@ -97,7 +88,6 @@ def run_plot(files, labels, title, output_file, mode):
         ax_loss.grid(True, linestyle='--', alpha=0.6)
 
     if ax_val:
-        # Determine label dynamically
         y_lbl = "Score (Dice)" 
         ax_val.set_title(f"{title} - Validation")
         ax_val.set_xlabel("Epochs")
@@ -107,24 +97,17 @@ def run_plot(files, labels, title, output_file, mode):
 
     plt.tight_layout()
     
-    # 4. Save
     if not output_file.endswith('.png'): output_file += '.png'
     plt.savefig(output_file, dpi=300)
-    print(f"✅ Saved plot to: {output_file}")
+    print(f"Saved plot to: {output_file}")
     plt.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Plot training history from .h5 files.")
-    
-    # Files & Labels
+    parser = argparse.ArgumentParser()
     parser.add_argument('--files', nargs='+', required=True, help="List of .h5 files to plot")
     parser.add_argument('--labels', nargs='+', help="Legend labels (must match number of files)")
-    
-    # Configuration
     parser.add_argument('--title', type=str, default="Model Comparison", help="Main title of the plot")
     parser.add_argument('--out', type=str, default="plot.png", help="Output filename (e.g. comparison.png)")
-    
-    # Mode selection
     parser.add_argument('--mode', type=str, choices=['both', 'loss', 'val'], default='both', 
                         help="What to plot: 'loss' (train only), 'val' (validation only), or 'both' (side-by-side)")
 

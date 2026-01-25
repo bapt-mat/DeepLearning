@@ -5,8 +5,6 @@ import cv2
 from pathlib import Path
 import os
 
-# --- SAFE IMPORT BLOCK ---
-# This prevents your old scripts from crashing if 'albumentations' isn't installed
 try:
     import albumentations as A
     from albumentations.pytorch import ToTensorV2
@@ -22,10 +20,8 @@ class ForgeryDataset(Dataset):
         self.images = []
         
         # Check environment variable for Augmentation
-        # Defaults to "False" so your old models are safe
         self.use_augmentation = os.environ.get("USE_AUGMENTATION", "False") == "True"
 
-        # 1. Collect paths (YOUR ORIGINAL LOGIC)
         auth = [(str(p), 0, None) for p in sorted((self.data_root / "train_images" / "authentic").glob("*.png"))]
         forg = []
         mask_root = self.data_root / "train_masks"
@@ -33,14 +29,14 @@ class ForgeryDataset(Dataset):
             m_path = mask_root / f"{p.stem}.npy"
             forg.append((str(p), 1, str(m_path) if m_path.exists() else None))
 
-        # 2. Stratified Split (80% Train, 20% Val)
+        # Stratified Split (80% Train, 20% Val)
         def split(data):
             np.random.seed(42) 
             perm = np.random.permutation(len(data))
             limit = int(0.8 * len(data))
             if phase == 'train':
                 return [data[i] for i in perm[:limit]]
-            else: # Validation / Test
+            else: 
                 return [data[i] for i in perm[limit:]]
 
         self.dataset = split(auth) + split(forg)
@@ -48,14 +44,14 @@ class ForgeryDataset(Dataset):
         if phase == 'train': 
             np.random.shuffle(self.dataset)
 
-        # 3. Define Albumentations Transform (Only if enabled)
+        # albumentations Transformations
         if self.use_augmentation and self.phase == 'train':
             if not HAS_ALBUMENTATIONS:
-                raise ImportError("USE_AUGMENTATION=True but albumentations not installed!")
+                raise ImportError("USE_AUGMENTATION=True but albumentations problem")
             
-            print("🌪️  DATA AUGMENTATION ENABLED (Flips, Rotate, Shift)!")
+            print("data augmentation oui")
             self.transform = A.Compose([
-                A.Resize(self.im_size[0], self.im_size[1]), # Matching your original 256 size
+                A.Resize(self.im_size[0], self.im_size[1]),
                 A.HorizontalFlip(p=0.5),
                 A.VerticalFlip(p=0.5),
                 A.RandomRotate90(p=0.5),
@@ -64,7 +60,7 @@ class ForgeryDataset(Dataset):
                 ToTensorV2()
             ])
         else:
-            self.transform = None # Will fall back to manual OpenCV code
+            self.transform = None
 
     def __len__(self): return len(self.dataset)
     
@@ -73,7 +69,6 @@ class ForgeryDataset(Dataset):
         img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
         
         h, w, _ = img.shape
-        # Create mask
         if label == 1 and mask_path:
             m = np.load(mask_path)
             if m.ndim == 3: m = m.max(axis=0)
@@ -81,9 +76,7 @@ class ForgeryDataset(Dataset):
         else:
             mask = np.zeros((h, w), dtype=np.float32)
 
-        # --- BRANCH: Augmentation vs Original ---
         if self.transform is not None:
-            # USE ALBUMENTATIONS
             augmented = self.transform(image=img, mask=mask)
             t_img = augmented['image']
             t_mask = augmented['mask'].float().unsqueeze(0)

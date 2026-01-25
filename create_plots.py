@@ -1,18 +1,11 @@
 import os
 import glob
-from plot_custom import run_plot  # your existing plotting function
+from plot_custom import run_plot
 
-# -----------------------------
-# CONFIGURATION
-# -----------------------------
-
-# Output folder for plots
 output_dir = "plots"
 os.makedirs(output_dir, exist_ok=True)
 
-# --- FILE GROUPS FOR PLOTTING ---
 
-# --- 1. Baseline Performance ---
 baseline_files = [
     "results_unet_baseline.h5",
     "results_segformer_b0_baseline.h5"
@@ -20,7 +13,7 @@ baseline_files = [
 baseline_labels = ["U-Net Pre-trained", "SegFormer B0 Pre-trained"]
 run_plot(baseline_files, baseline_labels, "Baseline Performance", os.path.join(output_dir, "baseline_comparison.png"), mode='both')
 
-# --- 2. U-Net Ablations ---
+# --- U-Net Ablations 
 # Pre-training
 unet_pretrain_files = ["results_unet_baseline.h5", "results_unet_scratch.h5"]
 unet_pretrain_labels = ["Pre-trained (Baseline)", "Scratch (No Pre-training)"]
@@ -36,7 +29,7 @@ unet_deepsup_files = ["results_unet_baseline.h5", "results_unet_deepsup.h5"]
 unet_deepsup_labels = ["Baseline", "Deep Supervision"]
 run_plot(unet_deepsup_files, unet_deepsup_labels, "U-Net Ablation: Deep Supervision", os.path.join(output_dir, "unet_deepsup.png"), mode='both')
 
-# --- 3. SegFormer Ablations ---
+# --- SegFormer Ablations 
 # Architecture capacity
 segformer_arch_files = ["results_segformer_b0_baseline.h5", "results_segformer_b2_capacity.h5"]
 segformer_arch_labels = ["MiT-B0 (Baseline)", "MiT-B2"]
@@ -57,7 +50,7 @@ segformer_res_files = ["results_segformer_b0_baseline.h5", "results_segformer_b2
 segformer_res_labels = ["256x256 (Baseline)", "512x512"]
 run_plot(segformer_res_files, segformer_res_labels, "SegFormer Ablation: Input Resolution", os.path.join(output_dir, "segformer_resolution.png"), mode='both')
 
-# --- 4. Training Duration Ablations ---
+# --- Training Duration Ablations 
 training_duration_files = [
     "results_unet_baseline.h5", "results_unet_baseline_100.h5",
     "results_segformer_b0_baseline.h5", "results_segformer_b0_baseline_100.h5",
@@ -70,4 +63,4 @@ training_duration_labels = [
 ]
 run_plot(training_duration_files, training_duration_labels, "Training Duration Ablation", os.path.join(output_dir, "training_duration.png"), mode='both')
 
-print("✅ All plots generated in folder:", output_dir)
+print("All plots generated in folder:", output_dir)

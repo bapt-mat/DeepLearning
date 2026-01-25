@@ -35,7 +35,7 @@ def run_evaluation():
     val_ds = ForgeryDataset(args.data_dir, phase='val')
     solution, submission = [], []
 
-    print(f"📊 Evaluating {args.save_name} on {len(val_ds)} images...")
+    print(f"Evaluating {args.save_name} on {len(val_ds)} images...")
     with torch.no_grad():
         for i in tqdm(range(len(val_ds))):
             img, mask = val_ds[i]
@@ -51,9 +51,8 @@ def run_evaluation():
             submission.append({'row_id': i, 'annotation': pred_str})
 
     score = kaggle_metric.score(pd.DataFrame(solution), pd.DataFrame(submission), 'row_id')
-    print(f"✅ oF1 SCORE: {score:.5f}")
+    print(f"oF1 SCORE: {score:.5f}")
     
-    # Save score to text file for download
     with open(f"score_{args.save_name}.txt", "w") as f:
         f.write(str(score))
 

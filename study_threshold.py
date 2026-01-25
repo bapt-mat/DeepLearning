@@ -23,25 +23,25 @@ def mask_to_rle(binary_mask):
 def run_study():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
-    parser.add_argument('--model_path', type=str, required=True) # e.g., segformer_b2_capacity.pth
+    parser.add_argument('--model_path', type=str, required=True) 
     parser.add_argument('--arch', type=str, default='segformer')
     parser.add_argument('--encoder', type=str, default='mit_b2')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"📊 Starting Threshold Study on {args.model_path}")
+    print(f"Starting Threshold Study on {args.model_path}")
     
-    # Load Model
+    # loading model
     model = FlexibleModel(arch=args.arch, encoder=args.encoder, weights=None).to(device)
     model.load_state_dict(torch.load(args.model_path, map_location=device))
     model.eval()
     
     val_ds = ForgeryDataset(args.data_dir, phase='val')
     
-    # Pre-calculate predictions (Speed optimization)
-    print("⚡ Generating probability maps...")
+    # calculate predictions
+    print("Generating probability maps...")
     ground_truth = []
-    predictions = [] # List of probability maps
+    predictions = []
     
     with torch.no_grad():
         for i in tqdm(range(len(val_ds))):
@@ -61,7 +61,7 @@ def run_study():
     sol_df = pd.DataFrame(ground_truth)
     scores = []
 
-    print("🔄 Testing thresholds...")
+    print("Testing thresholds...")
     for t in THRESHOLDS:
         # Apply threshold 't' to all stored predictions
         submission = []
@@ -73,7 +73,7 @@ def run_study():
         sub_df = pd.DataFrame(submission)
         score = kaggle_metric.score(sol_df, sub_df, 'row_id')
         scores.append(score)
-        print(f"   Threshold {t:.1f}: oF1 = {score:.4f}")
+        print(f"Threshold {t:.1f}: oF1 = {score:.4f}")
 
     # Plotting
     plt.figure(figsize=(8, 6))
@@ -83,7 +83,7 @@ def run_study():
     plt.ylabel("oF1 Score")
     plt.grid(True)
     plt.savefig(f"threshold_study.png")
-    print("✅ Plot saved to threshold_study.png")
+    print("Plot saved to threshold_study.png")
 
 if __name__ == "__main__":
     run_study()

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import segmentation_models_pytorch as smp
 
-# --- CUSTOM BLOCKS ---
+# --- CUSTOM BLOCKS 
 class ResidualBlock(nn.Module):
     def __init__(self, in_c, out_c, stride=1):
         super().__init__()
@@ -18,7 +18,7 @@ class ResidualBlock(nn.Module):
     def forward(self, x):
         return self.relu(self.bn2(self.conv2(self.relu(self.bn1(self.conv1(x))))) + self.shortcut(x))
 
-# --- DEEP SUPERVISION ARCHITECTURE ---
+# --- DEEP SUPERVISION ARCHITECTURE 
 class DeepSupResUNet(nn.Module):
     def __init__(self, n_classes=1):
         super().__init__()
@@ -59,7 +59,7 @@ class DeepSupResUNet(nn.Module):
         if self.training: return [out0, out1, out2]
         else: return out0
 
-# --- FLEXIBLE WRAPPER ---
+# --- FLEXIBLE WRAPPER
 class FlexibleModel(nn.Module):
     def __init__(self, arch='unet', encoder='resnet34', weights='imagenet', n_classes=1):
         super(FlexibleModel, self).__init__()
