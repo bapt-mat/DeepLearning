@@ -11,9 +11,7 @@ from model import FlexibleModel
 import kaggle_metric
 
 # --- CONFIGURATION ---
-# We fix the binarization threshold (e.g., 0.50)
 FIXED_PROB_THRESH = 0.50
-# We test these minimum sizes (in pixels)
 MIN_AREAS = [0, 5, 10, 25, 50, 75, 100, 200]
 
 def filter_and_encode(binary_mask, min_area):
@@ -24,7 +22,6 @@ def filter_and_encode(binary_mask, min_area):
     instances = []
     for k in range(1, num_features + 1):
         instance = (labeled_mask == k).astype(np.uint8)
-        # THE ABLATION LOGIC IS HERE:
         if instance.sum() > min_area:
             instances.append(instance)
             
@@ -52,11 +49,9 @@ def run_study():
     model.eval()
     
     # 2. Load Data
-    # Use the size the model was trained on
     val_ds = ForgeryDataset(args.data_dir, phase='val', im_size=(args.im_size, args.im_size))
     
-    # 3. Pre-calculate Binary Masks (Speed Optimization)
-    # We don't want to re-run the GPU model for every area threshold.
+    # 3. Pre-calculate Predictions & Build Ground Truth
     print("⚡ Generating base predictions...")
     ground_truth = []
     binary_predictions = [] 
@@ -65,20 +60,28 @@ def run_study():
         for i in tqdm(range(len(val_ds))):
             img, mask = val_ds[i]
             
-            # Save GT (using standard min_area=0 or 10 for reference doesn't matter for GT encoding logic usually)
-            # But strictly, GT needs to be encoded correctly.
-            # We use a simple helper for GT that keeps everything > 0
-            gt_mask = mask.squeeze().numpy().astype(np.uint8)
-            gt_rle = filter_and_encode(gt_mask, min_area=0) 
-            ground_truth.append({'row_id': i, 'annotation': gt_rle})
+            # --- FIX: CAPTURE SHAPE ---
+            # Mask shape is (1, H, W), we need (H, W) for the metric
+            current_shape = mask.squeeze().shape 
             
-            # Save Pred
+            # GT Encoding
+            gt_mask = mask.squeeze().numpy().astype(np.uint8)
+            # We use min_area=0 for GT to preserve everything
+            gt_rle = filter_and_encode(gt_mask, min_area=0) 
+            
+            # --- FIX: ADD 'shape' KEY ---
+            ground_truth.append({
+                'row_id': i, 
+                'annotation': gt_rle,
+                'shape': current_shape  # <--- CRITICAL FIX: Metric needs this
+            })
+            
+            # Prediction
             input_t = img.unsqueeze(0).to(device)
             out = model(input_t)
             if isinstance(out, list): out = out[0]
             prob_map = torch.sigmoid(out).squeeze().cpu().numpy()
             
-            # Binarize once
             pred_bin = (prob_map > FIXED_PROB_THRESH).astype(np.uint8)
             binary_predictions.append(pred_bin)
 
@@ -90,14 +93,18 @@ def run_study():
     for min_area in MIN_AREAS:
         submission = []
         for i, pred_bin in enumerate(binary_predictions):
-            # Apply dynamic filtering
             pred_rle = filter_and_encode(pred_bin, min_area)
             submission.append({'row_id': i, 'annotation': pred_rle})
         
         sub_df = pd.DataFrame(submission)
-        score = kaggle_metric.score(sol_df, sub_df, 'row_id')
-        scores.append(score)
-        print(f"   Min Area > {min_area} px: oF1 = {score:.4f}")
+        
+        try:
+            score = kaggle_metric.score(sol_df, sub_df, 'row_id')
+            scores.append(score)
+            print(f"   Min Area > {min_area} px: oF1 = {score:.4f}")
+        except Exception as e:
+            print(f"   ❌ Metric Error at area {min_area}: {e}")
+            scores.append(0)
 
     # 5. Plot
     plt.figure(figsize=(10, 6))
@@ -107,11 +114,11 @@ def run_study():
     plt.ylabel("oF1 Score")
     plt.grid(True, linestyle='--', alpha=0.7)
     
-    # Annotate Max
-    max_score = max(scores)
-    max_area = MIN_AREAS[scores.index(max_score)]
-    plt.axvline(max_area, color='r', linestyle='--', label=f"Best: >{max_area}px ({max_score:.4f})")
-    plt.legend()
+    if len(scores) > 0:
+        max_score = max(scores)
+        max_area = MIN_AREAS[scores.index(max_score)]
+        plt.axvline(max_area, color='r', linestyle='--', label=f"Best: >{max_area}px ({max_score:.4f})")
+        plt.legend()
     
     plt.savefig("study_min_area.png")
     print("✅ Plot saved to study_min_area.png")
