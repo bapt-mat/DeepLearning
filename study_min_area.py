@@ -60,20 +60,20 @@ def run_study():
         for i in tqdm(range(len(val_ds))):
             img, mask = val_ds[i]
             
-            # --- FIX: CAPTURE SHAPE ---
-            # Mask shape is (1, H, W), we need (H, W) for the metric
-            current_shape = mask.squeeze().shape 
+            # --- FIX IS HERE ---
+            # 1. Get shape as a list of integers: [256, 256]
+            shape_list = list(mask.squeeze().shape)
+            # 2. Convert to string so json.loads() in the metric doesn't crash: "[256, 256]"
+            shape_str = str(shape_list)
             
             # GT Encoding
             gt_mask = mask.squeeze().numpy().astype(np.uint8)
-            # We use min_area=0 for GT to preserve everything
             gt_rle = filter_and_encode(gt_mask, min_area=0) 
             
-            # --- FIX: ADD 'shape' KEY ---
             ground_truth.append({
                 'row_id': i, 
                 'annotation': gt_rle,
-                'shape': current_shape  # <--- CRITICAL FIX: Metric needs this
+                'shape': shape_str  # <--- Passing String instead of Size object
             })
             
             # Prediction
@@ -104,6 +104,8 @@ def run_study():
             print(f"   Min Area > {min_area} px: oF1 = {score:.4f}")
         except Exception as e:
             print(f"   ❌ Metric Error at area {min_area}: {e}")
+            import traceback
+            traceback.print_exc()
             scores.append(0)
 
     # 5. Plot
@@ -114,7 +116,7 @@ def run_study():
     plt.ylabel("oF1 Score")
     plt.grid(True, linestyle='--', alpha=0.7)
     
-    if len(scores) > 0:
+    if len(scores) > 0 and max(scores) > 0:
         max_score = max(scores)
         max_area = MIN_AREAS[scores.index(max_score)]
         plt.axvline(max_area, color='r', linestyle='--', label=f"Best: >{max_area}px ({max_score:.4f})")
