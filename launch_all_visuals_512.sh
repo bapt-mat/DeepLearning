@@ -34,6 +34,7 @@ MODELS=(
     "segformer_b0_dice_512"
     "segformer_b0_scratch_512"
     "segformer_b2_capacity_512"
+    "segformer_b2_512"
 )
 
 # 4. GENERATE H5 VISUALS
@@ -51,7 +52,7 @@ for MODEL in "${MODELS[@]}"; do
             if [[ "$MODEL" == *"b2"* ]]; then ENCODER="mit_b2"; fi
         fi
         
-        python3 generate_visuals.py \
+        python3 generate_viz_512.py \
             --data_dir "$DIRECT_DATA" \
             --save_name "$MODEL" \
             --arch "$ARCH" \
