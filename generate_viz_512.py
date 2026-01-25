@@ -12,12 +12,10 @@ def run_visuals():
     parser.add_argument('--save_name', type=str, required=True)
     parser.add_argument('--arch', type=str, default='unet')
     parser.add_argument('--encoder', type=str, default='resnet34')
-    # NEW ARGUMENT: Allows specifying 512 explicitly
-    parser.add_argument('--im_size', type=int, default=512, help="Image resolution (default: 512)")
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"💾 Generating H5 visuals for: {args.save_name} at {args.im_size}x{args.im_size}")
+    print(f"💾 Generating H5 visuals for: {args.save_name}")
 
     # 1. Load Model
     model = FlexibleModel(arch=args.arch, encoder=args.encoder, weights=None, n_classes=1).to(device)
@@ -30,14 +28,12 @@ def run_visuals():
     try:
         model.load_state_dict(torch.load(weights_path, map_location=device))
     except:
-        print("⚠️ Loading with strict=False")
         model.load_state_dict(torch.load(weights_path, map_location=device), strict=False)
         
     model.eval()
 
-    # 2. Load Dataset (Pass the size tuple)
-    # This ensures the validation images are resized to 512x512 before inference
-    val_ds = ForgeryDataset(args.data_dir, phase='val', im_size=(args.im_size, args.im_size))
+    # 2. Load Dataset
+    val_ds = ForgeryDataset(args.data_dir, phase='val', im_size=(512, 512))
     
     # 3. Find Forged Samples (Intelligent Scanning)
     print("🔍 Scanning for forged validation samples...")
