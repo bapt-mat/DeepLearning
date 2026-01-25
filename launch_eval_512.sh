@@ -30,7 +30,14 @@ fi
 
 # 3. LIST MODELS
 MODELS=(
-    "segformer_b2_512"
+    "unet_baseline_512"
+    "unet_dice_512"
+    "unet_scratch_512"
+    "unet_deepsup_512"
+    "segformer_b0_baseline_512"
+    "segformer_b0_dice_512"
+    "segformer_b0_scratch_512"
+    "segformer_b2_capacity_512"
 )
 
 # 4. EVALUATION LOOP
