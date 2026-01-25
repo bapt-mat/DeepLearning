@@ -26,15 +26,15 @@ fi
 
 # 3. LIST MODELS
 MODELS=(
-    "unet_baseline"
-    "unet_dice"
-    "unet_scratch"
-    "unet_deepsup"
-    "segformer_b0_baseline"
-    "segformer_b0_dice"
-    "segformer_b0_scratch"
-    "segformer_b2_capacity"
-    "segformer_b2_aug"
+    "unet_baseline_100"
+    "unet_dice_100"
+    "unet_scratch_100"
+    "unet_deepsup_100"
+    "segformer_b0_baseline_100"
+    "segformer_b0_dice_100"
+    "segformer_b0_scratch_100"
+    "segformer_b2_capacity_100"
+    "segformer_b2_aug_100"
 )
 
 # 4. GENERATE H5 VISUALS
@@ -52,7 +52,7 @@ for MODEL in "${MODELS[@]}"; do
             if [[ "$MODEL" == *"b2"* ]]; then ENCODER="mit_b2"; fi
         fi
         
-        python3 generate_visuals.py \
+        python3 generate_balanced.py \
             --data_dir "$DIRECT_DATA" \
             --save_name "$MODEL" \
             --arch "$ARCH" \

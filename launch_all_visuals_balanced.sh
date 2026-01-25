@@ -34,6 +34,7 @@ MODELS=(
     "segformer_b0_dice"
     "segformer_b0_scratch"
     "segformer_b2_capacity"
+    "segformer_b2_aug"
 )
 
 # 4. GENERATE H5 VISUALS
