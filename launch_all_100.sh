@@ -1,18 +1,12 @@
 #!/bin/bash
 
-# ==========================================
-# ⚙️ CONFIGURATION
-# ==========================================
-# 1. Path to the SHARED Environment (Built once, used by all)
+# config
 SHARED_VENV="$HOME/DeepForg/venv_shared"
 
-# 2. Path to the ORIGINAL DATASET (Read directly, NO COPYING)
 DIRECT_DATA_PATH="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# ==========================================
-# 🛠️ STEP 1: SETUP JOBS (Build Venv Once)
-# ==========================================
-echo "📦 Generating Setup Script..."
+# setup jobs
+echo "Generating Setup Script..."
 
 cat <<EOT > setup_env.sh
 #!/bin/bash
@@ -26,7 +20,7 @@ cat <<EOT > setup_env.sh
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 
-echo "🔧 Setting up Shared Environment at: $SHARED_VENV"
+echo "Setting up Shared Environment at: $SHARED_VENV"
 
 # 1. Load Base Python
 source /home_expes/tools/python/python3915_0_gpu/bin/activate
@@ -44,19 +38,15 @@ source $SHARED_VENV/bin/activate
 pip install --no-cache-dir --upgrade pip
 pip install --no-cache-dir --upgrade "numpy<2" h5py opencv-python-headless torch==1.12.1+cu113 "segmentation-models-pytorch>=0.3.3" timm albumentations scikit-learn pandas numba --extra-index-url https://download.pytorch.org/whl/cu113
 
-echo "✅ Environment Ready."
+echo "Environment Ready."
 EOT
 
-# Submit Setup Job
+# Submit setup job
 SETUP_JOB_ID=$(sbatch --parsable setup_env.sh)
-echo "🚀 Submitted Setup Job (ID: $SETUP_JOB_ID)"
-echo "⏳ The training jobs will wait for Setup to finish..."
+echo "Submitted Setup Job (ID: $SETUP_JOB_ID)"
+echo "The training jobs will wait for Setup to finish"
 
-# ==========================================
-# 🚀 STEP 2: SUBMIT PARALLEL TRAINING JOBS
-# ==========================================
-# We submit all 8 jobs NOW, but they will wait (dependency) for the Setup to finish.
-# Once Setup is done, they will ALL start efficiently.
+# submit parallel training jobs
 
 submit_parallel_job() {
     NAME=$1
@@ -84,7 +74,7 @@ source /home_expes/tools/python/python3915_0_gpu/bin/activate
 source $SHARED_VENV/bin/activate
 
 # 3. TRAIN (Direct Read - Zero Disk Usage)
-echo "🔥 Training $NAME (Reading from source)..."
+echo "Training $NAME (Reading from source)..."
 python3 train.py \\
   --epochs 100 \\
   --data_dir "$DIRECT_DATA_PATH" \\
@@ -95,22 +85,20 @@ python3 train.py \\
   --save_name $NAME
 
 # 4. EVALUATE
-echo "📊 Evaluating $NAME..."
+echo "Evaluating $NAME..."
 python3 evaluate_official.py \\
   --data_dir "$DIRECT_DATA_PATH" \\
   --arch $ARCH \\
   --encoder $ENCODER \\
   --save_name $NAME
 
-echo "✅ Done."
+echo "Done."
 EOT
 
-    # Submit with dependency on SETUP only (not previous training)
-    # This allows them to run in PARALLEL once setup is done.
     sbatch --dependency=afterany:$SETUP_JOB_ID run_${NAME}.sh
 }
 
-echo "📋 Queueing Parallel Jobs..."
+echo "Queueing Parallel Jobs..."
 
 # Group A: U-Net
 submit_parallel_job "unet_baseline_100" "unet" "resnet34" "imagenet" "bce"
@@ -125,5 +113,4 @@ submit_parallel_job "segformer_b0_scratch_100" "segformer" "mit_b0" "None" "bce"
 submit_parallel_job "segformer_b0_dice_100" "segformer" "mit_b0" "imagenet" "dice"
 
 echo "----------------------------------------"
-echo "🎉 All jobs submitted in PARALLEL mode."
-echo "They will start as soon as 'SetupEnv' finishes."
+echo "All jobs submitted in PARALLEL mode."

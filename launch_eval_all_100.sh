@@ -6,29 +6,27 @@
 #SBATCH --output=logs/eval_safe_%j.log
 #SBATCH --job-name=EvalSafe
 
-# 1. SETUP ENV
+# setup
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 
 SHARED_VENV="$HOME/DeepForg/venv_shared"
-# POINT DIRECTLY TO NETWORK STORAGE (Zero Disk Usage)
 DIRECT_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# 2. ACTIVATE SHARED VENV & INSTALL PANDAS
+# activate shared venv 
 if [ -d "$SHARED_VENV" ]; then
-    echo "✅ Found Shared Venv. Activating..."
+    echo "Found Shared Venv. Activating..."
     source /home_expes/tools/python/python3915_0_gpu/bin/activate
     source $SHARED_VENV/bin/activate
     
-    # INSTALL MISSING LIBRARIES (Fixes "No module named pandas")
-    echo "📦 Checking for pandas & scikit-learn..."
+    echo "Checking for pandas and scikit-learn"
     pip install --no-cache-dir pandas scikit-learn
 else
-    echo "❌ Error: Shared Venv not found. Run setup first."
+    echo "Error: Shared Venv not found. Run setup first."
     exit 1
 fi
 
-# 3. LIST MODELS
+# list models
 MODELS=(
     "unet_baseline_100"
     "unet_dice_100"
@@ -41,10 +39,10 @@ MODELS=(
     "segformer_b2_aug_100"
 )
 
-# 4. EVALUATION LOOP
+# evaluation loop
 for MODEL in "${MODELS[@]}"; do
     if [ -f "${MODEL}.pth" ]; then
-        echo "📊 Evaluating $MODEL..."
+        echo "Evaluating $MODEL..."
         
         # Configure Arch/Encoder
         ARCH="unet"
@@ -56,15 +54,14 @@ for MODEL in "${MODELS[@]}"; do
             if [[ "$MODEL" == *"b2"* ]]; then ENCODER="mit_b2"; fi
         fi
         
-        # RUN PYTHON SCRIPT (Reading directly from Source)
         python3 evaluate_full_metrics.py \
             --data_dir "$DIRECT_DATA" \
             --save_name "$MODEL" \
             --arch "$ARCH" \
             --encoder "$ENCODER"
     else
-        echo "⚠️  ${MODEL}.pth not found. Skipping."
+        echo "${MODEL}.pth not found. Skipping."
     fi
 done
 
-echo "✅ All evaluations complete."
+echo "All evaluations complete."

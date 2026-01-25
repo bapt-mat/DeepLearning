@@ -6,25 +6,24 @@
 #SBATCH --output=logs/viz_h5_%j.log
 #SBATCH --job-name=VizH5
 
-# 1. SETUP ENV
+# setup
 export HTTP_PROXY=http://cache.univ-st-etienne.fr:3128
 export HTTPS_PROXY=http://cache.univ-st-etienne.fr:3128
 
 SHARED_VENV="$HOME/DeepForg/venv_shared"
-# POINT DIRECTLY TO NETWORK STORAGE (Zero Disk Usage)
 DIRECT_DATA="/home_expes/tools/mldm-m2/recodai-luc-scientific-image-forgery-detection"
 
-# 2. ACTIVATE SHARED VENV
+# activatee venv
 if [ -d "$SHARED_VENV" ]; then
-    echo "✅ Found Shared Venv. Activating..."
+    echo "Found Shared Venv. Activating..."
     source /home_expes/tools/python/python3915_0_gpu/bin/activate
     source $SHARED_VENV/bin/activate
 else
-    echo "❌ Error: Shared Venv not found. Run setup first."
+    echo "Error: Shared Venv not found. Run setup first."
     exit 1
 fi
 
-# 3. LIST MODELS
+#models
 MODELS=(
     "unet_baseline_512"
     "unet_dice_512"
@@ -37,10 +36,10 @@ MODELS=(
     "segformer_b2_512"
 )
 
-# 4. GENERATE H5 VISUALS
+# h5 visuals
 for MODEL in "${MODELS[@]}"; do
     if [ -f "${MODEL}.pth" ]; then
-        echo "💾 Processing $MODEL..."
+        echo "Processing $MODEL..."
         
         ARCH="unet"
         ENCODER="resnet34"
@@ -58,8 +57,8 @@ for MODEL in "${MODELS[@]}"; do
             --arch "$ARCH" \
             --encoder "$ENCODER"
     else
-        echo "⚠️  Model ${MODEL}.pth not found. Skipping."
+        echo "Model ${MODEL}.pth not found. Skipping."
     fi
 done
 
-echo "✅ All H5 files created."
+echo "All H5 files created."
