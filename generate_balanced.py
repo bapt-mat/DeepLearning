@@ -74,7 +74,7 @@ def run_balanced_gen():
             store_preds.append(prob_map)
 
     # 5. Save
-    out_file = f"visuals_{args.save_name}.h5"
+    out_file = f"balanced_visuals_{args.save_name}.h5"
     with h5py.File(out_file, 'w') as f:
         f.create_dataset("images", data=np.array(store_imgs))
         f.create_dataset("masks", data=np.array(store_masks))

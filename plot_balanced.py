@@ -6,7 +6,7 @@ import os
 import glob
 
 def plot_h5(file_path):
-    save_name = os.path.basename(file_path).replace('visuals_', '').replace('.h5', '')
+    save_name = os.path.basename(file_path).replace('balanced_visuals_', '').replace('.h5', '')
     print(f"📂 Processing {file_path}...")
     
     try:
