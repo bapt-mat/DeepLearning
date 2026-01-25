@@ -85,9 +85,9 @@ def plot_h5(file_path):
         print(f"   ❌ Error reading {file_path}: {e}")
 
 if __name__ == "__main__":
-    files = sorted(glob.glob("visuals_*.h5"))
+    files = sorted(glob.glob("balanced_visuals_*.h5"))
     if not files:
-        print("No 'visuals_*.h5' files found!")
+        print("No 'balanced_visuals_*.h5' files found!")
     else:
         for f in files:
             plot_h5(f)
