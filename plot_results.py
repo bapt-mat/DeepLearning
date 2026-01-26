@@ -51,6 +51,7 @@ EXPERIMENTS = {
 }
 
 def load_history(filename):
+    # loading history from H5 file
     if not os.path.exists(filename):
         print(f"Warning: {filename} not found")
         return None
@@ -66,6 +67,7 @@ def load_history(filename):
     return data
 
 def get_key(history, candidates):
+    # get key from history matching candidates
     for key in candidates:
         if key in history: return key
         for h_key in history.keys():
@@ -73,6 +75,7 @@ def get_key(history, candidates):
     return None
 
 def plot_ablation(experiment_name, config):
+    # function to plot ablation study results
     print(f"Plotting {experiment_name}...")
     files = config["files"]
     labels = config["labels"]

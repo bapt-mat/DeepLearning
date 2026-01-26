@@ -11,6 +11,7 @@ from scipy.ndimage import label
 import kaggle_metric
 
 def mask_to_kaggle_format(binary_mask):
+    # Convert binary mask to Kaggle RLE format
     labeled_mask, num_features = label(binary_mask)
     instances = []
     for i in range(1, num_features + 1):
@@ -31,6 +32,7 @@ def calculate_pixel_metrics(pred_bin, gt_mask):
     return dice, iou
 
 def evaluate():
+    # function to evaluate full metrics: Classification, Segmentation, oF1
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--save_name', type=str, required=True)

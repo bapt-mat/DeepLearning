@@ -13,6 +13,7 @@ except ImportError:
     HAS_ALBUMENTATIONS = False
 
 class ForgeryDataset(Dataset):
+    # Class to handle the dataset for forgery detection
     def __init__(self, data_root, phase='train', im_size=(256, 256)):
         self.data_root = Path(data_root)
         self.phase = phase
@@ -65,6 +66,7 @@ class ForgeryDataset(Dataset):
     def __len__(self): return len(self.dataset)
     
     def __getitem__(self, idx):
+        # Load image and mask
         img_path, label, mask_path = self.dataset[idx]
         img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
         

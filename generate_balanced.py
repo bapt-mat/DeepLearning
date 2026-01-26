@@ -7,6 +7,7 @@ from dataset import ForgeryDataset
 from model import FlexibleModel
 
 def run_balanced_gen():
+    # function to generate balanced visuals (5 authentic + 5 forged)
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--save_name', type=str, required=True)

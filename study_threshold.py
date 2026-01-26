@@ -14,6 +14,7 @@ import kaggle_metric
 THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 def mask_to_rle(binary_mask):
+    # Convert binary mask to RLE format
     labeled_mask, num_features = label(binary_mask)
     instances = []
     for k in range(1, num_features + 1):
@@ -21,6 +22,7 @@ def mask_to_rle(binary_mask):
     return "authentic" if not instances else kaggle_metric.rle_encode(instances)
 
 def run_study():
+    # run ablation study on thresholds
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--model_path', type=str, required=True) 

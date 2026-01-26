@@ -4,9 +4,8 @@ import os
 import numpy as np
 import argparse
 
-# --- HELPER FUNCTIONS ---
-
 def load_history(filename):
+    # function to load training history from H5 file
     if not os.path.exists(filename):
         print(f"Warning: '{filename}' not found. Skipping.")
         return None
@@ -22,6 +21,7 @@ def load_history(filename):
     return data
 
 def get_key(history, candidates):
+    # geet the first matching key from candidates in history
     for key in candidates:
         if key in history: return key
         for h_key in history.keys():
@@ -30,6 +30,7 @@ def get_key(history, candidates):
 
 
 def run_plot(files, labels, title, output_file, mode):
+    # function to plot training and validation metrics from H5 files
     print(f"Initializing Plot: {title}")
     print(f"Mode: {mode}")
     

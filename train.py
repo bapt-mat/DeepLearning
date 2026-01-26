@@ -7,15 +7,15 @@ import numpy as np
 from dataset import ForgeryDataset
 from model import FlexibleModel
 
-# --- METRICS 
 def calculate_metrics(pred, target):
+    # metric calculation: Dice Score
     pred = (torch.sigmoid(pred) > 0.5).float()
     tp, fp, fn = (pred * target).sum(), (pred * (1-target)).sum(), ((1-pred) * target).sum()
     score = (2*tp + 1e-6)/(2*tp + fp + fn + 1e-6)
     return {"Dice": score.item()}
 
-# --- DICE Loss
 class DiceLoss(torch.nn.Module):
+    # Dice loss implementation
     def __init__(self): super().__init__()
     def forward(self, inputs, targets, smooth=1):
         inputs = torch.sigmoid(inputs).view(-1)
@@ -24,6 +24,7 @@ class DiceLoss(torch.nn.Module):
         return 1 - (2.*intersection + smooth)/(inputs.sum() + targets.sum() + smooth)
 
 def train():
+    # main training function
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--epochs', type=int, default=20)
@@ -38,7 +39,7 @@ def train():
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"🚀 Config: {args.arch} | {args.encoder} | {args.im_size}x{args.im_size} | Batch: {args.batch_size}")
+    print(f"Config: {args.arch} | {args.encoder} | {args.im_size}x{args.im_size} | Batch: {args.batch_size}")
 
     size_tuple = (args.im_size, args.im_size)
 

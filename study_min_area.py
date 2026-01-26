@@ -14,6 +14,7 @@ FIXED_PROB_THRESH = 0.50
 MIN_AREAS = [0, 5, 10, 25, 50, 75, 100, 200]
 
 def filter_and_encode(binary_mask, min_area):
+    # Filter instances smaller than min_area and encode to RLE
     labeled_mask, num_features = label(binary_mask)
     instances = []
     for k in range(1, num_features + 1):
@@ -24,6 +25,7 @@ def filter_and_encode(binary_mask, min_area):
     return "authentic" if not instances else kaggle_metric.rle_encode(instances)
 
 def run_study():
+    # run ablation study
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--model_path', type=str, required=True)

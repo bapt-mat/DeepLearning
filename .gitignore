@@ -2,6 +2,9 @@ data/
 dataset.zip
 *.pth
 *.png
+plots/
+h5/
+metrics_csv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -7,6 +7,7 @@ from dataset import ForgeryDataset
 from model import FlexibleModel
 
 def run_visuals():
+    # function to generate H5 visuals for a given model
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--save_name', type=str, required=True)
