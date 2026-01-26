@@ -1,0 +1,13 @@
+numpy<2
+h5py
+opencv-python-headless
+torch==1.12.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+segmentation-models-pytorch>=0.3.3
+timm
+albumentations
+scikit-learn
+pandas
+numba
+matplotlib
+scipy
+tqdm
