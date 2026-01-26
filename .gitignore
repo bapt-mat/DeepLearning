@@ -1,6 +1,6 @@
 data/
 dataset.zip
-.pth
+*.pth
 *.png
 plots/
 h5/
